@@ -7,7 +7,7 @@
 // Locally:  MAKEFUN_OUTPUT_DIR=out node main.ts
 // The scorer runs it with /output as the destination.
 
-import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
@@ -24,8 +24,9 @@ const caps = {
   game_path_max_bytes: 1000,
 };
 
-// Start from a clean directory so a stale file can never leak into a run.
-rmSync(outDir, { recursive: true, force: true });
+// The grader gives us an empty writable /output (a Docker volume mount),
+// so we only create it — never delete it: rmSync on a mount point fails
+// with EBUSY and crashes the run (that was the round-1 run_completes bug).
 mkdirSync(outDir, { recursive: true });
 
 // The game itself, then its screenshots, byte for byte.
