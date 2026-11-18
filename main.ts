@@ -1,4 +1,5 @@
 // SOLMARIS — handover program (Node 22, standard library only).
+// Round 3 (2026-11-19): resubmitted under a fresh recording; handover unchanged.
 // Copies the playable game and its screenshots into the output directory
 // and writes the dossier the bounty scores from. It runs twice and both
 // runs must produce identical bytes, so there is no clock, no randomness
@@ -36,4 +37,4 @@ cpSync(join(here, 'screenshots'), join(outDir, 'screenshots'), { recursive: true
 // The dossier, built from exactly what was just copied.
 writeFileSync(join(outDir, 'dossier.json'), buildDossier(outDir, caps));
 
-console.log(`Solmaris handed over to ${outDir}`);
+console.log(`Solmaris handed over to ${outDir} (dossier: ${join(outDir, 'dossier.json')})`);
