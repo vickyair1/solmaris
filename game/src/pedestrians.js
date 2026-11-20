@@ -222,6 +222,15 @@ export function createPedestrians(scene, city, effects, rng) {
     init(px, pz) {
       for (let i = 0; i < PED_COUNT; i += 1) spawnNear(px, pz, 8, 180);
     },
+    /** Put a specific pedestrian at a spot (staged shots, taxi fares). */
+    spawnAt(x, z, heading) {
+      const ped = makePed(x, z, heading || 0);
+      ped.axis = 'x';
+      ped.line = city.nearestRoadValue(z);
+      ped.dir = 1;
+      ped.side = 1;
+      return ped;
+    },
     update,
     knockDown,
     /** Scatter everyone near a point (explosions, big crashes). */

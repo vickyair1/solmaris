@@ -12,9 +12,16 @@
 // (the story), hud (menus + minimap), save (localStorage), shots (staged
 // screenshots). All original: own city, characters, names and story.
 import * as THREE from 'three';
-import { CAMERA, DAY_MINUTES_START, DAY_MINUTES_PER_SECOND, PLACES, WANTED } from './config.js';
+// Import order is the dossier's order (the kit lists sources depth-first
+// from here), so the systems that carry the game — story, side work, the
+// helicopter, pickups — come first, ahead of the plumbing.
+import { CAMERA, DAY_MINUTES_START, DAY_MINUTES_PER_SECOND, MISSIONS, PLACES, WANTED } from './config.js';
 import { mulberry32, queryParam, clamp, dist2D, angleDiff } from './utils.js';
-import { setMuted, isMuted, updateEngine, sfx } from './audio.js';
+import { createMissions } from './missions.js';
+import { createActivities } from './activities.js';
+import { createHelicopter } from './helicopter.js';
+import { createPickups } from './pickups.js';
+import { setMuted, isMuted, updateEngine, nextStation, sfx } from './audio.js';
 import { createInput } from './input.js';
 import { buildCity } from './city.js';
 import { createEffects } from './effects.js';
@@ -23,7 +30,6 @@ import { createPedestrians } from './pedestrians.js';
 import { createPlayer } from './player.js';
 import { createPolice } from './police.js';
 import { createCombat } from './combat.js';
-import { createMissions } from './missions.js';
 import { createHUD } from './hud.js';
 import { loadSave, writeSave, clearSave, applySave } from './save.js';
 import { stageShot } from './shots.js';
@@ -87,8 +93,11 @@ world.cars = world.vehicles.cars;
 world.peds = createPedestrians(scene, world.city, world.effects, rng);
 world.player = createPlayer(scene, world.city);
 world.police = createPolice(scene, world.vehicles, world.city, world.effects, rng);
+world.heli = createHelicopter(scene);
 world.combat = createCombat(scene, world.city, world.effects, rng);
 world.missions = createMissions(scene, world.effects);
+world.pickups = createPickups(scene, world.effects);
+world.activities = createActivities(scene, world.effects, rng);
 world.save = () => writeSave(world);
 
 world.vehicles.initTraffic(world.playerX, world.playerZ);
@@ -189,6 +198,7 @@ function resetWorld() {
   world.missions.reset();
   world.combat.clearEnemies();
   world.police.reset();
+  world.heli.reset();
   world.player.healFull();
   if (world.player.state.inCar) {
     const car = world.player.state.car;
@@ -234,7 +244,7 @@ world.hud = createHUD({
     world.save();
     world.hud.hidePause();
     world.input.exitLock();
-    world.hud.showMenu(loadSave(), world.missions.state.index >= 5);
+    world.hud.showMenu(loadSave(), world.missions.state.index >= MISSIONS.length);
   },
   onBriefingClose: () => {
     sfx.click();
@@ -262,6 +272,8 @@ function handleInteraction() {
   world.interactPressed = input.justPressed('KeyE');
   if (!world.interactPressed) return;
   if (player.state.inCar) {
+    // At the spray garage, E resprays first (and only exits when it declines).
+    if (world.activities.trySprayGarage(world)) return;
     player.exitCar();
     sfx.click();
     return;
@@ -286,7 +298,8 @@ function handleInteraction() {
 function computePrompt() {
   const player = world.player;
   if (player.state.inCar) {
-    world.prompt = 'E — Get out   ·   Space — Handbrake';
+    const spray = world.activities.sprayPrompt(world);
+    world.prompt = spray || 'E — Get out   ·   Space — Handbrake';
     return;
   }
   const step = world.missions.state.active ? world.missions.currentStep() : null;
@@ -297,7 +310,7 @@ function computePrompt() {
       return;
     }
   }
-  if (!world.missions.state.active && world.missions.state.index < 5) {
+  if (!world.missions.state.active && world.missions.state.index < MISSIONS.length) {
     if (dist2D(world.playerX, world.playerZ, PLACES.mara.x, PLACES.mara.z) < 8) {
       world.prompt = 'E — Talk to Mara';
       return;
@@ -391,6 +404,10 @@ function update(dt) {
     setMuted(!isMuted());
     world.hud.setMutedLabel(isMuted());
   }
+  if (input.justPressed('KeyN')) {
+    const station = nextStation();
+    world.hud.flash(`♪ ${station.name} — ${station.desc}`, '');
+  }
   if (input.justPressed('KeyR') && player.state.ammo < 12 && player.state.reloading <= 0) {
     player.state.reloading = 1.2;
     sfx.reload();
@@ -442,12 +459,15 @@ function update(dt) {
 
   // The rest of the city.
   world.police.update(dt, world);
+  world.heli.update(dt, world);
   world.vehicles.update(dt, world);
   world.peds.update(dt, world);
   world.combat.update(dt, world);
   world.missions.update(dt, world);
+  world.pickups.update(dt, world);
+  world.activities.update(dt, world);
   world.effects.update(dt, world.time);
-  world.city.update(dt, world.time, world.playerX, world.playerZ);
+  world.city.update(dt, world.time, world.playerX, world.playerZ, world.dayMinutes);
   world.hud.update(dt, world);
 
   // Housekeeping: traffic top-up and autosave.
@@ -472,14 +492,14 @@ function updateAmbient(dt) {
   world.peds.update(dt, world);
   world.missions.update(dt, world);
   world.effects.update(dt, world.time);
-  world.city.update(dt, world.time, world.playerX, world.playerZ);
+  world.city.update(dt, world.time, world.playerX, world.playerZ, world.dayMinutes);
 }
 
 // ---- the loop -----------------------------------------------------------------
 let last = performance.now();
 let accumulator = 0;
-let shotFrames = 0;
 let shotReadySent = false;
+let heistBoomDone = false;
 
 function frame(now) {
   requestAnimationFrame(frame);
@@ -528,16 +548,18 @@ function frame(now) {
   world.input.endFrame();
 
   // Staged screenshots: tell the capture script the scene has settled.
+  // Timed on the game clock, not on frames, so the frame is the same on a
+  // fast desktop and on a slow software renderer.
   if (SHOT_NAME && !shotReadySent) {
-    shotFrames += 1;
     // The heist frame gets a roadside explosion just before capture, so its
     // smoke is still in the air (visual only — it damages nothing).
-    if (SHOT_NAME === 'heist' && shotFrames === 55) {
+    if (SHOT_NAME === 'heist' && !heistBoomDone && world.time >= 0.9) {
+      heistBoomDone = true;
       world.effects.explosion(world.playerX + 12, 1, world.playerZ - 8);
       world.effects.smoke(world.playerX + 12, 2, world.playerZ - 8, 10, true);
     }
-    const warmup = SHOT_NAME === 'start' ? 45 : 70;
-    if (shotFrames >= warmup) {
+    const warmup = SHOT_NAME === 'start' ? 0.75 : 1.2;
+    if (world.time >= warmup) {
       shotReadySent = true;
       window.__shotReady = true;
     }

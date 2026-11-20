@@ -1,4 +1,4 @@
-// SOLMARIS — the story: five missions for Mara, from a first fare to the big
+// SOLMARIS — the story: eight missions for Mara, from a first fare to the big
 // score. Each mission is a list of steps (drive somewhere, grab something,
 // clear the Vultures out, outrun the law); a beacon in the world and a blip
 // on the minimap always show where the job is.
@@ -25,7 +25,7 @@ export function createMissions(scene, effects) {
   scene.add(beacon, ring, diamond);
 
   const state = {
-    index: 0, // next mission to run (0..4); 5 = story complete
+    index: 0, // next mission to run (0..7); 8 = story complete
     active: false,
     stepIndex: 0,
     kills: 0,
@@ -115,7 +115,7 @@ export function createMissions(scene, effects) {
       for (let i = 0; i < step.count; i += 1) {
         world.combat.makeEnemy(spots[i][0], spots[i][1]);
       }
-      world.hud.flash(`Vultures at the marina — ${step.count} hostiles`, 'warning');
+      world.hud.flash(`Vultures at ${base.label} — ${step.count} hostiles`, 'warning');
     } else if (step.type === 'escape') {
       if (step.wanted > 0) world.police.setWanted(step.wanted, world);
       world.hud.flash('Lose the cops — break line of sight', 'warning');

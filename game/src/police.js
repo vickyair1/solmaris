@@ -9,6 +9,9 @@ import { updateSiren } from './audio.js';
 
 export function createPolice(scene, vehicles, city, effects, rng) {
   const policeCars = [];
+  const roadblocks = []; // police cars parked across the road ahead (3+ stars)
+  let roadblockX = 0;
+  let roadblockZ = 0;
   let wanted = 0;
   let hideTimer = 0;
   let decayTimer = 0;
@@ -64,10 +67,50 @@ export function createPolice(scene, vehicles, city, effects, rng) {
     }
   }
 
+  /** Two units parked sideways across the road ahead of the player. */
+  function buildRoadblock(px, pz, heading) {
+    const fx = Math.sin(heading);
+    const fz = -Math.cos(heading);
+    let ahead = 55;
+    let bx = px + fx * ahead;
+    let bz = pz + fz * ahead;
+    while ((Math.abs(bx) > 200 || Math.abs(bz) > 200) && ahead > 20) {
+      ahead -= 15;
+      bx = px + fx * ahead;
+      bz = pz + fz * ahead;
+    }
+    if (Math.abs(bx) > 200 || Math.abs(bz) > 200) return;
+    clearRoadblocks();
+    const northSouth = Math.abs(fz) > Math.abs(fx);
+    const tilt = () => range(rng, -0.2, 0.2);
+    if (northSouth) {
+      const roadX = city.nearestRoadValue(bx);
+      roadblocks.push(vehicles.makeCar('police', 0xf0f0f0, roadX - 3.2, bz, Math.PI / 2 + tilt(), 'police'));
+      roadblocks.push(vehicles.makeCar('police', 0xf0f0f0, roadX + 3.2, bz, Math.PI / 2 + tilt(), 'police'));
+    } else {
+      const roadZ = city.nearestRoadValue(bz);
+      roadblocks.push(vehicles.makeCar('police', 0xf0f0f0, bx, roadZ - 3.2, tilt(), 'police'));
+      roadblocks.push(vehicles.makeCar('police', 0xf0f0f0, bx, roadZ + 3.2, tilt(), 'police'));
+    }
+    for (const car of roadblocks) {
+      car.path = [];
+      car.pathIndex = 0;
+      car.stuckTimer = 0;
+    }
+    roadblockX = bx;
+    roadblockZ = bz;
+  }
+
+  function clearRoadblocks() {
+    for (const car of roadblocks) vehicles.removeCar(car);
+    roadblocks.length = 0;
+  }
+
   function setWanted(level, world) {
     wanted = clamp(Math.round(level), 0, WANTED.max);
     hideTimer = 0;
     decayTimer = 0;
+    if (wanted < 3) clearRoadblocks();
     if (wanted === 0) {
       // Heat off: the remaining cars peel away.
       for (const car of policeCars) vehicles.removeCar(car);
@@ -97,6 +140,21 @@ export function createPolice(scene, vehicles, city, effects, rng) {
       }
       vehicles.removeCar(farthest);
       policeCars.splice(policeCars.indexOf(farthest), 1);
+    }
+
+    // Roadblock: one blockade ahead of the player at 3+ stars. It rebuilds
+    // ahead once the player reaches it, rams through it, or drives away.
+    if (wanted >= 3) {
+      for (let i = roadblocks.length - 1; i >= 0; i -= 1) {
+        if (roadblocks[i].dead) roadblocks.splice(i, 1);
+      }
+      const blockD = dist2D(px, pz, roadblockX, roadblockZ);
+      if (roadblocks.length === 0 || blockD < 22 || blockD > 130) {
+        const heading = world.player.state.inCar && world.player.state.car
+          ? world.player.state.car.heading
+          : world.player.state.heading;
+        buildRoadblock(px, pz, heading);
+      }
     }
 
     // Drive each police car.
@@ -207,6 +265,7 @@ export function createPolice(scene, vehicles, city, effects, rng) {
     reset() {
       for (const car of policeCars) vehicles.removeCar(car);
       policeCars.length = 0;
+      clearRoadblocks();
       wanted = 0;
       hideTimer = 0;
       decayTimer = 0;

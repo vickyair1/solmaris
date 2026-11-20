@@ -1,8 +1,9 @@
 // SOLMARIS — the HUD: wanted stars, money, clock, mission objective, health
 // and armour, the minimap, prompts and banners — plus the start screen, the
 // pause menu and the mission briefing. All DOM over the 3D canvas.
-import { ROAD_LINES, ROAD_W, CITY_HALF, WORLD_HALF, BEACH_Z, WATER_Z, MISSIONS } from './config.js';
+import { ROAD_LINES, ROAD_W, CITY_HALF, WORLD_HALF, BEACH_Z, WATER_Z, MISSIONS, districtAt } from './config.js';
 import { clockString, moneyString, dist2D } from './utils.js';
+import { currentStation, audioUnlocked } from './audio.js';
 
 const MAP_SIZE = 190;
 const MAP_SCALE = MAP_SIZE / (WORLD_HALF * 2 + 16);
@@ -74,11 +75,28 @@ export function createHUD(callbacks) {
       ctx.arc(toMapX(enemy.x), toMapZ(enemy.z), 3, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Mission marker: pulsing diamond (green M when idle, yellow when active).
-    const marker = world.missions.markerTarget();
+    // Police helicopter (cyan) and pickups (green health, blue armour).
+    if (world.heli && world.heli.active) {
+      ctx.fillStyle = '#40d0ff';
+      ctx.beginPath();
+      ctx.arc(toMapX(world.heli.state.x), toMapZ(world.heli.state.z), 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (world.pickups) {
+      for (const item of world.pickups.list) {
+        if (!item.available) continue;
+        ctx.fillStyle = item.kind === 'health' ? '#40d040' : '#4080ff';
+        ctx.fillRect(toMapX(item.x) - 2, toMapZ(item.z) - 2, 4, 4);
+      }
+    }
+    // Objective marker: pulsing diamond (yellow when a job is live, green
+    // when idle — Mara's marina, or a fare already aboard the cab).
+    const marker = world.missions.markerTarget()
+      || (world.activities ? world.activities.markerTarget() : null);
     if (marker) {
       const pulse = 4 + Math.sin(now * 4) * 1.5;
-      ctx.fillStyle = world.missions.state.active ? '#ffe93a' : '#3aff88';
+      const fareWaiting = world.activities && world.activities.state.phase === 'waiting';
+      ctx.fillStyle = (world.missions.state.active || fareWaiting) ? '#ffe93a' : '#3aff88';
       ctx.save();
       ctx.translate(toMapX(marker.x), toMapZ(marker.z));
       ctx.rotate(Math.PI / 4);
@@ -126,9 +144,22 @@ export function createHUD(callbacks) {
     setStars(world.police.wanted, world.police.hiding, world.time);
     $('money').textContent = moneyString(world.money);
     $('clock').textContent = clockString(world.dayMinutes);
-    const objective = world.missions.objectiveText();
-    const marker = world.missions.markerTarget();
-    let objectiveHtml = `<div class="obj-mission">${world.missions.state.active ? world.missions.currentMission().name : 'SOLMARIS'}</div><div class="obj-text">${objective}</div>`;
+    $('radio').textContent = audioUnlocked()
+      ? `♪ ${currentStation().name} — ${currentStation().desc}`
+      : '';
+    $('district').textContent = districtAt(world.playerX, world.playerZ);
+    let objective = world.missions.objectiveText();
+    let marker = world.missions.markerTarget();
+    let missionName = world.missions.state.active ? world.missions.currentMission().name : 'SOLMARIS';
+    if (!world.missions.state.active && world.activities) {
+      const fareText = world.activities.objectiveText();
+      if (fareText) {
+        objective = fareText;
+        marker = world.activities.markerTarget();
+        missionName = 'TAXI FARE';
+      }
+    }
+    let objectiveHtml = `<div class="obj-mission">${missionName}</div><div class="obj-text">${objective}</div>`;
     if (marker) {
       const d = Math.round(dist2D(world.playerX, world.playerZ, marker.x, marker.z));
       objectiveHtml += `<div class="obj-dist">${d}m</div>`;
@@ -193,7 +224,7 @@ export function createHUD(callbacks) {
     $('btn-continue').style.display = saved ? 'block' : 'none';
     $('menu-complete').style.display = storyComplete ? 'block' : 'none';
     $('menu-missions').textContent = storyComplete
-      ? 'Story complete — all 5 missions done.'
+      ? `Story complete — all ${MISSIONS.length} missions done.`
       : `${MISSIONS.length - (saved ? saved.missionIndex : 0)} missions waiting in Solmaris.`;
   }
 

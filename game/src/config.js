@@ -73,9 +73,19 @@ export const CAR = {
   smokeAt: 65,
 };
 
-export const TRAFFIC_COUNT = 16;
-export const PARKED_COUNT = 10;
-export const PED_COUNT = 26;
+export const TRAFFIC_COUNT = 22;
+export const PARKED_COUNT = 12;
+export const PED_COUNT = 38;
+
+// ---- police helicopter -----------------------------------------------------
+// Air One joins the chase at 3 stars: it shadows the player from above and
+// its searchlight gives the pursuit away on the minimap and in the sky.
+export const HELI = {
+  wantedLevel: 3,
+  height: 26, // low enough to sit inside the driving camera's frame
+  speed: 30,
+  followDistance: 26, // trails behind, where the chase camera looks
+};
 
 // ---- wanted / police -------------------------------------------------------
 export const WANTED = {
@@ -146,6 +156,42 @@ export const MISSIONS = [
     ],
   },
   {
+    id: 'night-shift',
+    name: 'Night Shift',
+    giver: 'Mara',
+    reward: 2500,
+    briefing: 'Mara\'s late courier never showed, and four drops are still waiting across town. One clock, four stops — the city at dusk is yours, but the money is not.',
+    steps: [
+      { type: 'timed', label: 'Make every drop before the clock runs out', target: 'docksWest', radius: 8, time: 150, checkpoints: ['cp1', 'hospital', 'cp3', 'docksWest'] },
+    ],
+  },
+  {
+    id: 'rat-trap',
+    name: 'Rat Trap',
+    giver: 'Mara',
+    reward: 3000,
+    briefing: 'Kestrel\'s crew is holed up in the old warehouse by the hideout, sitting on a stash that belongs to Mara. Five of them, armed. Go in loud, come out rich.',
+    steps: [
+      { type: 'goto', label: 'Reach the warehouse by the hideout', target: 'hideout', radius: 10 },
+      { type: 'kill', label: 'Clear the Vultures from the warehouse', count: 5, target: 'hideout' },
+      { type: 'interact', label: 'Grab the stash', target: 'hideout', radius: 6, prompt: 'Press E — Grab the stash' },
+      { type: 'goto', label: 'Bring the stash back to Mara', target: 'mara', radius: 7 },
+    ],
+  },
+  {
+    id: 'bank-job',
+    name: 'Bank Job',
+    giver: 'Mara',
+    reward: 3500,
+    briefing: 'Solmaris Bank keeps a cash drop in the back, and the Vultures are already inside casing it. Beat them to it: clear the crew, take the cash, and vanish before the sirens find you.',
+    steps: [
+      { type: 'goto', label: 'Reach Solmaris Bank', target: 'bank', radius: 8 },
+      { type: 'kill', label: 'Clear the Vultures from the bank', count: 4, target: 'bank' },
+      { type: 'interact', label: 'Grab the cash', target: 'bank', radius: 6, prompt: 'Press E — Grab the cash' },
+      { type: 'goto', label: 'Stash the cash at the hideout', target: 'hideout', radius: 9 },
+    ],
+  },
+  {
     id: 'the-big-score',
     name: 'The Big Score',
     giver: 'Mara',
@@ -178,6 +224,25 @@ export const PLACES = {
   cp3: { x: 174, z: 116, label: 'Checkpoint 3' },
   spawn: { x: 0, z: 174, label: 'Start' },
 };
+
+// ---- districts -------------------------------------------------------------
+// Named neighbourhoods; the HUD shows where Riko is, and fares pay by how
+// far across town they go. First match wins (checked in this order).
+export const DISTRICTS = [
+  { name: 'The Beach', x0: -232, z0: 214, x1: 232, z1: 260 },
+  { name: 'The Marina', x0: -232, z0: 145, x1: 232, z1: 214 },
+  { name: 'Downtown', x0: -87, z0: -87, x1: 87, z1: 145 },
+  { name: 'West Docks', x0: -232, z0: -87, x1: -87, z1: 145 },
+  { name: 'East Alley', x0: 87, z0: -87, x1: 232, z1: 145 },
+  { name: 'Northside', x0: -232, z0: -232, x1: 232, z1: -87 },
+];
+
+export function districtAt(x, z) {
+  for (const d of DISTRICTS) {
+    if (x >= d.x0 && x < d.x1 && z >= d.z0 && z < d.z1) return d.name;
+  }
+  return 'Solmaris';
+}
 
 // ---- camera ----------------------------------------------------------------
 export const CAMERA = {

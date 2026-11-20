@@ -150,6 +150,7 @@ export function createPlayer(scene, city) {
     state.aimYawOffset = clamp(state.aimYawOffset, -2.2, 2.2);
     if (Math.abs(input.mouseDX) < 0.5) state.aimYawOffset = damp(state.aimYawOffset, 0, 1.4, dt);
     state.camPitch = clamp(state.camPitch + input.mouseDY * 0.0022, 0.05, 0.9);
+    if (Math.abs(input.mouseDY) < 0.5) state.camPitch = damp(state.camPitch, 0.32, 1.2, dt);
   }
 
   /** Third-person camera: behind the player on foot, behind the car driving. */
@@ -165,12 +166,15 @@ export function createPlayer(scene, city) {
       const car = state.car;
       const yaw = car.heading + Math.PI + state.aimYawOffset;
       const dist = CAMERA.carDistance + Math.abs(car.speed) * 0.06;
-      const height = CAMERA.carHeight + Math.abs(car.speed) * 0.02;
+      // Mouse pitch tilts the driving camera (neutral at the default 0.32):
+      // look up and the helicopter and skyline come into frame.
+      const pitchUp = state.camPitch - 0.32;
+      const height = CAMERA.carHeight + Math.abs(car.speed) * 0.02 + pitchUp * 4;
       targetX = car.x + Math.sin(yaw) * dist;
       targetY = height;
       targetZ = car.z - Math.cos(yaw) * dist;
       lookX = car.x + Math.sin(car.heading) * 6;
-      lookY = 1.6;
+      lookY = 1.6 + pitchUp * 14;
       lookZ = car.z - Math.cos(car.heading) * 6;
     } else {
       const dist = CAMERA.footDistance;

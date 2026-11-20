@@ -3,7 +3,40 @@
 // every screenshot) shows the same Solmaris.
 import * as THREE from 'three';
 import { PITCH, ROAD_W, BLOCK, ROAD_LINES, CITY_HALF, WORLD_HALF, BEACH_Z, WATER_Z, PALETTE } from './config.js';
-import { clamp, dist2D, intRange, pick, range } from './utils.js';
+import { clamp, dist2D, intRange, lerp, pick, range } from './utils.js';
+
+// ---- time of day -----------------------------------------------------------
+// The clock runs 1 game-minute per real second from 10:00, so a session
+// drifts from morning into golden hour and dusk. Keyframes hold outside
+// their range (no full night — the city has no headlights yet).
+const DAY_KEYS = [
+  { h: 6, sun: 0xffd9b0, sunI: 1.6, sky: 0xa8c8e8, fog: 0xc8d8e8, hemi: 0.7, sunY: 90 },
+  { h: 10, sun: 0xfff1cf, sunI: 2.9, sky: 0x8fc3ea, fog: 0xb8d4ec, hemi: 0.95, sunY: 140 },
+  { h: 13, sun: 0xfff1cf, sunI: 2.9, sky: 0x8fc3ea, fog: 0xb8d4ec, hemi: 0.95, sunY: 140 },
+  { h: 17, sun: 0xffb36b, sunI: 2.4, sky: 0xf0b070, fog: 0xe8b888, hemi: 0.8, sunY: 70 },
+  { h: 18.5, sun: 0xff8a5a, sunI: 1.6, sky: 0xd88080, fog: 0xd89090, hemi: 0.65, sunY: 55 },
+  { h: 19.5, sun: 0xff8a5a, sunI: 1.6, sky: 0xd88080, fog: 0xd89090, hemi: 0.65, sunY: 55 },
+];
+
+function dayPhase(hours) {
+  if (hours <= DAY_KEYS[0].h) return DAY_KEYS[0];
+  for (let i = 1; i < DAY_KEYS.length; i += 1) {
+    if (hours <= DAY_KEYS[i].h) {
+      const a = DAY_KEYS[i - 1];
+      const b = DAY_KEYS[i];
+      const t = (hours - a.h) / (b.h - a.h);
+      return {
+        sun: new THREE.Color(a.sun).lerp(new THREE.Color(b.sun), t).getHex(),
+        sunI: lerp(a.sunI, b.sunI, t),
+        sky: new THREE.Color(a.sky).lerp(new THREE.Color(b.sky), t).getHex(),
+        fog: new THREE.Color(a.fog).lerp(new THREE.Color(b.fog), t).getHex(),
+        hemi: lerp(a.hemi, b.hemi, t),
+        sunY: lerp(a.sunY, b.sunY, t),
+      };
+    }
+  }
+  return DAY_KEYS[DAY_KEYS.length - 1];
+}
 import {
   buildFacadeSet,
   facadeTexture,
@@ -319,6 +352,39 @@ export function buildCity(scene, rng) {
   });
   scene.add(poles, lamps);
 
+  // ---- crosswalks: zebra stripes at every intersection approach ------------
+  // One instanced mesh for the whole city (49 intersections x 4 approaches x
+  // 5 stripes); the stripes make every street shot read as a real city.
+  const stripeGeo = new THREE.PlaneGeometry(0.8, 3.0);
+  const stripeMat = new THREE.MeshBasicMaterial({ color: 0xe8e4d8 });
+  const stripeCount = ROAD_LINES.length * ROAD_LINES.length * 4 * 5;
+  const stripes = new THREE.InstancedMesh(stripeGeo, stripeMat, stripeCount);
+  {
+    let si = 0;
+    const m4 = new THREE.Matrix4();
+    const qFlat = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
+    const qFlat90 = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, Math.PI / 2));
+    const one = new THREE.Vector3(1, 1, 1);
+    for (const ix of ROAD_LINES) {
+      for (const iz of ROAD_LINES) {
+        for (const [cx, cz, rot90] of [
+          [ix, iz - ROAD_W / 2 - 2.2, false], [ix, iz + ROAD_W / 2 + 2.2, false],
+          [ix - ROAD_W / 2 - 2.2, iz, true], [ix + ROAD_W / 2 + 2.2, iz, true],
+        ]) {
+          for (let s = 0; s < 5; s += 1) {
+            const off = (s - 2) * 2.8;
+            const px = rot90 ? cx : cx + off;
+            const pz = rot90 ? cz + off : cz;
+            m4.compose(new THREE.Vector3(px, 0.03, pz), rot90 ? qFlat90 : qFlat, one);
+            stripes.setMatrixAt(si, m4);
+            si += 1;
+          }
+        }
+      }
+    }
+  }
+  scene.add(stripes);
+
   // ---- clouds ---------------------------------------------------------------
   const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, fog: false });
   for (let i = 0; i < 9; i += 1) {
@@ -364,9 +430,16 @@ export function buildCity(scene, rng) {
     return dx <= ROAD_W / 2 + 1 || dz <= ROAD_W / 2 + 1;
   }
 
-  function update(dt, time, focusX, focusZ) {
+  function update(dt, time, focusX, focusZ, dayMinutes) {
+    // Time of day: the sun, sky and fog drift with the clock.
+    const phase = dayPhase(((dayMinutes || 600) / 60) % 24);
+    sun.color.setHex(phase.sun);
+    sun.intensity = phase.sunI;
+    scene.background.setHex(phase.sky);
+    scene.fog.color.setHex(phase.fog);
+    hemi.intensity = phase.hemi;
     // Sun shadow box follows the player so shadows stay crisp nearby.
-    sun.position.set(focusX + 90, 140, focusZ + 70);
+    sun.position.set(focusX + 90, phase.sunY, focusZ + 70);
     sun.target.position.set(focusX, 0, focusZ);
     for (const cloud of animated.clouds) {
       cloud.position.x += dt * 1.2;

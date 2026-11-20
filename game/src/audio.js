@@ -42,6 +42,11 @@ export function isMuted() {
   return muted;
 }
 
+/** True once a user gesture has created the audio context (radio is live). */
+export function audioUnlocked() {
+  return ctx !== null;
+}
+
 function tone(freq, dur, type, volume, slideTo) {
   if (!ensureContext()) return;
   const t0 = ctx.currentTime;
@@ -213,18 +218,42 @@ export function updateSiren(active, nearestDistance) {
   sirenNodes.gain.gain.setTargetAtTime(volume, ctx.currentTime, 0.3);
 }
 
-// ---- music: a tiny 8-step bass loop, low in the mix ------------------------
-// Original pattern in A minor, written for this game.
-const BASS_LINE = [55, 0, 55, 65.41, 0, 55, 82.41, 73.42];
+// ---- radio: three original stations, all synthesized -----------------------
+// Each station is an 8-step loop with its own pattern, tempo and voice.
+// N switches station; the HUD shows what is playing. Starts on the first
+// user gesture, like every other sound here.
+const STATIONS = [
+  { name: 'SOL FM', desc: 'Coastal Grooves', bass: [55, 0, 55, 65.41, 0, 55, 82.41, 73.42], stepMs: 210, wave: 'triangle', vol: 0.1 },
+  { name: 'VOLTAGE', desc: 'Night Drive', bass: [49, 49, 0, 58.27, 49, 0, 65.41, 58.27], stepMs: 170, wave: 'sawtooth', vol: 0.055 },
+  { name: 'MARINA JAZZ', desc: 'Harbour Lights', bass: [87.31, 0, 103.83, 0, 98, 0, 87.31, 0], stepMs: 260, wave: 'sine', vol: 0.12 },
+];
+let stationIndex = 0;
+
+export function currentStation() {
+  return STATIONS[stationIndex];
+}
+
+/** Switch to the next station; returns the station now playing. */
+export function nextStation() {
+  stationIndex = (stationIndex + 1) % STATIONS.length;
+  musicStep = 0;
+  if (musicTimer !== null) {
+    clearInterval(musicTimer);
+    musicTimer = null;
+    startMusic();
+  }
+  return STATIONS[stationIndex];
+}
 
 function startMusic() {
   if (musicTimer !== null || !ctx) return;
+  const station = STATIONS[stationIndex];
   musicTimer = setInterval(() => {
     if (muted || !ctx) return;
-    const freq = BASS_LINE[musicStep % BASS_LINE.length];
+    const freq = station.bass[musicStep % station.bass.length];
     musicStep += 1;
-    if (freq > 0) tone(freq, 0.32, 'triangle', 0.1);
+    if (freq > 0) tone(freq, 0.32, station.wave, station.vol);
     // A soft hat tick on every other step.
     if (musicStep % 2 === 0) noiseBurst(0.03, 0.03, 6000, 'highpass');
-  }, 210);
+  }, station.stepMs);
 }

@@ -94,6 +94,7 @@ export function createCarMesh(type, colorHex) {
     }
   }
   bodyMesh.castShadow = true;
+  bodyMesh.userData.isBody = true;
   // Wheels: front pair steers, all four spin.
   const wheels = [];
   const frontWheels = [];
@@ -128,7 +129,7 @@ export function createCarMesh(type, colorHex) {
     lightBlue.position.set(-0.2, 1.85, -0.45);
     group.add(lightRed, lightBlue);
   }
-  return { group, wheels, frontWheels, lightRed, lightBlue };
+  return { group, wheels, frontWheels, lightRed, lightBlue, bodyMesh };
 }
 
 export function createVehicles(scene, city, effects, rng) {
@@ -143,7 +144,7 @@ export function createVehicles(scene, city, effects, rng) {
     const car = {
       type, colorHex, role,
       mesh: parts.group, wheels: parts.wheels, frontWheels: parts.frontWheels,
-      lightRed: parts.lightRed, lightBlue: parts.lightBlue,
+      lightRed: parts.lightRed, lightBlue: parts.lightBlue, bodyMesh: parts.bodyMesh,
       x, z, heading, speed: 0,
       damage: 0, dead: false, shotProof: false, smokeTimer: 0,
       axis: 'x', line: 0, dir: 1, cruise: 10,
@@ -199,6 +200,24 @@ export function createVehicles(scene, city, effects, rng) {
     starter.axis = 'x';
     starter.line = 174;
     starter.dir = 1;
+    // Fill the downtown parking lot (block 1,-1, centre 87,-29): two rows of
+    // parked cars, so the lot reads as a lot instead of an empty slab.
+    for (let i = 0; i < 6; i += 1) {
+      const row = i < 3 ? -8 : 8;
+      const col = (i % 3) * 12 - 12;
+      const type = rng() < 0.25 ? 'sports' : rng() < 0.15 ? 'taxi' : 'sedan';
+      const car = makeCar(type, pick(rng, PALETTE.car), 87 + col, -29 + row, 0, 'parked');
+      car.axis = 'z';
+      car.line = 87;
+      car.dir = 1;
+    }
+  }
+
+  /** Repaint a car (the spray garage): new body colour, same car. */
+  function repaintCar(car, colorHex) {
+    if (!car.bodyMesh) return;
+    car.colorHex = colorHex;
+    car.bodyMesh.material = bodyMat(colorHex);
   }
 
   function removeCar(car) {
@@ -469,6 +488,7 @@ export function createVehicles(scene, city, effects, rng) {
     drive,
     collideBuildings,
     damageCar,
+    repaintCar,
     nearestCar,
     update,
     initTraffic(px, pz) {
