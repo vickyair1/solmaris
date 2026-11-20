@@ -21,6 +21,9 @@
   #stars .star.lit { color: #ffd23a; text-shadow: 0 0 10px rgba(255,210,58,0.9); }
   #money { font-size: 26px; font-weight: bold; color: #7ddb6a; text-shadow: 0 2px 6px rgba(0,0,0,0.8); margin-top: 2px; }
   #clock { font-size: 15px; color: #dfe8f0; text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
+  #radio { font-size: 12px; color: #ffe93a; text-shadow: 0 1px 4px rgba(0,0,0,0.8); margin-top: 2px; }
+  #radio:empty { display: none; }
+  #district { font-size: 12px; font-weight: bold; letter-spacing: 2px; color: #dfe8f0; text-shadow: 0 1px 4px rgba(0,0,0,0.9); margin-bottom: 5px; text-transform: uppercase; }
 
   #objective { position: absolute; top: 14px; left: 16px; padding: 10px 14px; max-width: 380px; border-left: 4px solid #ffe93a; }
   .obj-mission { font-size: 13px; font-weight: bold; letter-spacing: 2px; color: #ffe93a; }
@@ -102,6 +105,7 @@
     <div id="stars"></div>
     <div id="money">$0</div>
     <div id="clock">10:00</div>
+    <div id="radio"></div>
   </div>
   <div id="vitals">
     <div class="bar-row"><span class="bar-label">HEALTH</span><div class="bar"><div id="health-fill" class="fill" style="width:100%"></div></div></div>
@@ -109,6 +113,7 @@
     <div id="ammo"></div>
   </div>
   <div id="map-wrap">
+    <div id="district">Solmaris</div>
     <canvas id="minimap" width="190" height="190"></canvas>
     <div id="speed"></div>
   </div>
@@ -122,15 +127,15 @@
 <div id="menu" class="overlay">
   <h1>SOLMARIS</h1>
   <div class="tagline">Sun · Streets · Score</div>
-  <p class="story">Solmaris is a sun-soaked coastal city, and everybody in it owes somebody something. You are <b>Riko Vale</b>, a driver for hire with a fast car and a faster reputation. Your fixer <b>Mara</b> works the marina — five jobs stand between you and the big score, and the Vultures want the harbour for themselves. Drive clean or drive loud. Just don't get caught.</p>
+  <p class="story">Solmaris is a sun-soaked coastal city, and everybody in it owes somebody something. You are <b>Riko Vale</b>, a driver for hire with a fast car and a faster reputation. Your fixer <b>Mara</b> works the marina — eight jobs stand between you and the big score, and the Vultures want the harbour for themselves. Drive clean or drive loud. Just don't get caught.</p>
   <button id="btn-new" class="menu-btn">▶ New Game</button>
   <button id="btn-continue" class="menu-btn secondary">Continue</button>
-  <div id="menu-complete">★ STORY COMPLETE — all 5 missions done ★</div>
+  <div id="menu-complete">★ STORY COMPLETE — all 8 missions done ★</div>
   <div id="menu-missions"></div>
   <div class="controls">
     <b>WASD</b> move / drive &nbsp;·&nbsp; <b>Mouse</b> camera &nbsp;·&nbsp; <b>Click</b> shoot &nbsp;·&nbsp; <b>F</b> punch<br>
     <b>E</b> enter / exit car, talk, pick up &nbsp;·&nbsp; <b>Shift</b> run &nbsp;·&nbsp; <b>Space</b> jump / handbrake<br>
-    <b>R</b> reload &nbsp;·&nbsp; <b>P</b> pause &nbsp;·&nbsp; <b>M</b> mute &nbsp;·&nbsp; progress autosaves
+    <b>R</b> reload &nbsp;·&nbsp; <b>N</b> radio &nbsp;·&nbsp; <b>P</b> pause &nbsp;·&nbsp; <b>M</b> mute &nbsp;·&nbsp; progress autosaves
   </div>
   <div class="fineprint">An original game: own city, characters, story, art and sound. No Rockstar / GTA content. Keyboard + mouse.</div>
 </div>
