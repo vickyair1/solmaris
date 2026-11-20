@@ -64,7 +64,79 @@
   #fade { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: #000; transition: opacity 0.5s; }
   #fade.show { opacity: 0.55; }
 
-  #btn-mute { position: absolute; top: 14px; right: 16px; margin-top: 108px; pointer-events: auto; background: rgba(8,16,26,0.62); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 5px 10px; font-size: 12px; cursor: pointer; }
+  #btn-mute { position: absolute; top: 14px; right: 16px; margin-top: 178px; pointer-events: auto; background: rgba(8,16,26,0.62); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 5px 10px; font-size: 12px; cursor: pointer; }
+
+  #insight { font-size: 12px; font-weight: bold; letter-spacing: 2px; margin-top: 3px; text-shadow: 0 1px 4px rgba(0,0,0,0.9); }
+  #insight:empty { display: none; }
+  #insight.seen { color: #ff6060; }
+  #insight.hidden { color: #7ddb6a; }
+
+  #weapons { display: flex; gap: 6px; justify-content: flex-end; margin-top: 8px; }
+  .wslot { min-width: 72px; padding: 6px 8px; background: rgba(8,16,26,0.62); border: 1px solid rgba(255,255,255,0.14); border-radius: 4px; text-align: left; }
+  .wslot.sel { border-color: #ffe93a; box-shadow: 0 0 10px rgba(255,233,58,0.35); }
+  .wslot.locked { opacity: 0.55; }
+  .wslot .wkey { font-size: 10px; color: #bcd; }
+  .wslot .wname { font-size: 12px; font-weight: bold; letter-spacing: 1px; }
+  .wslot .wammo { font-size: 11px; color: #ffe93a; }
+  .wslot .wprice { font-size: 11px; color: #7ddb6a; }
+
+  #dispatch { position: absolute; top: 152px; left: 16px; padding: 10px 12px; width: 282px; }
+  #dispatch:empty { display: none; }
+  .disp-head { font-size: 12px; font-weight: bold; letter-spacing: 2px; color: #ff8080; margin-bottom: 6px; }
+  .disp-row { display: flex; justify-content: space-between; font-size: 13px; padding: 2px 0; }
+  .disp-row .dstat { font-weight: bold; }
+  .dstat.RAMMING { color: #ff5030; }
+  .dstat.SPOTLIGHT { color: #40d0ff; }
+  .dstat.ROADBLOCK { color: #ffe93a; }
+  .dstat.CLOSINGIN { color: #ffb060; }
+  .dstat.RESPONDING { color: #bcd; }
+
+  #respect-label { font-size: 12px; font-weight: bold; letter-spacing: 1px; margin-top: 8px; text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
+  #respect-label .rpts { color: #ffe93a; }
+  #respect-fill { background: #ffe93a !important; }
+
+  #dialogue { position: absolute; left: 50%; bottom: 84px; transform: translateX(-50%); width: 460px; max-width: 90vw; display: none; align-items: flex-start; gap: 12px; padding: 12px 14px; }
+  #dialogue.show { display: flex; }
+  #dlg-portrait { width: 52px; height: 52px; border-radius: 4px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: bold; color: #111; }
+  #dlg-name { font-size: 13px; font-weight: bold; letter-spacing: 1px; }
+  #dlg-role { font-size: 10px; letter-spacing: 2px; color: #bcd; }
+  #dlg-line { font-size: 15px; line-height: 1.4; margin-top: 3px; }
+
+  #vehicle { margin-bottom: 6px; text-align: right; }
+  #vehicle:empty { display: none; }
+  #vehicle-name { font-size: 15px; font-weight: bold; letter-spacing: 1px; text-shadow: 0 1px 4px rgba(0,0,0,0.9); }
+  #vehicle .bar { height: 8px; margin-top: 3px; }
+  #condition-fill { background: #58d858 !important; }
+  #condition-fill.low { background: #e83838 !important; }
+
+  #wheel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 360px; height: 360px; display: none; pointer-events: auto; }
+  #wheel.show { display: block; }
+  #wheel .wheel-center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 118px; height: 118px; border-radius: 50%; background: rgba(8,16,26,0.88); border: 1px solid rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; text-align: center; font-size: 12px; font-weight: bold; letter-spacing: 1px; color: #ffe93a; }
+  .wheel-slot { position: absolute; width: 112px; padding: 8px 6px; background: rgba(8,16,26,0.88); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; cursor: pointer; text-align: center; }
+  .wheel-slot.sel { border-color: #ffe93a; box-shadow: 0 0 14px rgba(255,233,58,0.4); }
+  .wheel-slot.locked { opacity: 0.5; cursor: default; }
+  .wheel-slot .wname { font-size: 13px; font-weight: bold; letter-spacing: 1px; }
+  .wheel-slot .wammo, .wheel-slot .wprice { font-size: 11px; color: #ffe93a; }
+  .wheel-slot .wkey { font-size: 10px; color: #bcd; }
+
+  #shop-panel { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 20; background: rgba(4,8,14,0.6); pointer-events: auto; }
+  #shop-panel.show { display: flex; }
+  #shop-panel .dialog { width: 560px; max-width: 92vw; text-align: left; max-height: 86vh; overflow-y: auto; }
+  #shop-panel h2 { text-align: center; }
+  #shop-sub { text-align: center; font-size: 13px; color: #bcd; margin-bottom: 12px; }
+  .shop-row { display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-top: 1px solid rgba(255,255,255,0.1); }
+  .shop-row .sname { font-size: 15px; font-weight: bold; }
+  .shop-row .sdesc { font-size: 12px; color: #bcd; }
+  .shop-row .sinfo { flex: 1; }
+  .shop-buy { min-width: 92px; padding: 8px 10px; font-size: 13px; font-weight: bold; color: #111; background: #ffe93a; border: none; border-radius: 4px; cursor: pointer; }
+  .shop-buy:hover { background: #fff06a; }
+  .shop-buy:disabled { background: rgba(255,255,255,0.14); color: #888; cursor: default; }
+  #shop-money { text-align: center; font-size: 15px; font-weight: bold; color: #7ddb6a; margin: 10px 0 4px; }
+  #shop-close { display: block; margin: 12px auto 0; }
+
+  #jack-meter { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); width: 260px; display: none; text-align: center; }
+  #jack-meter .label { font-size: 13px; font-weight: bold; letter-spacing: 2px; color: #ffe93a; margin-bottom: 5px; text-shadow: 0 1px 4px rgba(0,0,0,0.9); }
+  #jack-fill { background: #ffe93a !important; width: 0%; }
 
   /* ---------- menus ---------- */
   .overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 10; }
@@ -101,41 +173,51 @@
 
 <div id="hud" class="hidden">
   <div id="objective" class="panel"></div>
+  <div id="dispatch" class="panel"></div>
   <div id="top-right">
     <div id="stars"></div>
+    <div id="insight"></div>
     <div id="money">$0</div>
     <div id="clock">10:00</div>
     <div id="radio"></div>
+    <div id="weapons"></div>
   </div>
   <div id="vitals">
     <div class="bar-row"><span class="bar-label">HEALTH</span><div class="bar"><div id="health-fill" class="fill" style="width:100%"></div></div></div>
     <div class="bar-row" id="armor-row" style="display:none"><span class="bar-label">ARMOUR</span><div class="bar"><div id="armor-fill" class="fill" style="width:0%"></div></div></div>
+    <div id="respect-label"></div>
+    <div class="bar-row"><span class="bar-label">RESPECT</span><div class="bar"><div id="respect-fill" class="fill" style="width:0%"></div></div></div>
     <div id="ammo"></div>
   </div>
   <div id="map-wrap">
     <div id="district">Solmaris</div>
     <canvas id="minimap" width="190" height="190"></canvas>
+    <div id="vehicle"><div id="vehicle-name"></div><div class="bar"><div id="condition-fill" class="fill" style="width:100%"></div></div></div>
     <div id="speed"></div>
   </div>
+  <div id="dialogue" class="panel"><div id="dlg-portrait"></div><div><div id="dlg-name"></div><div id="dlg-role"></div><div id="dlg-line"></div></div></div>
   <div id="prompt"></div>
   <div id="banner"><div id="banner-title"></div><div id="banner-sub"></div></div>
   <div id="flash"></div>
   <div id="busted-meter"><div class="label">BUSTED</div><div class="bar"><div id="busted-fill" class="fill"></div></div></div>
+  <div id="jack-meter"><div class="label">JACKING THE CAR…</div><div class="bar"><div id="jack-fill" class="fill"></div></div></div>
+  <div id="wheel"><div class="wheel-center">WEAPONS<br>1–5 or click</div></div>
+  <div id="shop-panel"><div class="dialog"><h2 id="shop-title"></h2><div id="shop-sub"></div><div id="shop-money"></div><div id="shop-rows"></div><button id="shop-close" class="menu-btn secondary">Close (Esc)</button></div></div>
   <button id="btn-mute">🔊 Sound on</button>
 </div>
 
 <div id="menu" class="overlay">
   <h1>SOLMARIS</h1>
   <div class="tagline">Sun · Streets · Score</div>
-  <p class="story">Solmaris is a sun-soaked coastal city, and everybody in it owes somebody something. You are <b>Riko Vale</b>, a driver for hire with a fast car and a faster reputation. Your fixer <b>Mara</b> works the marina — eight jobs stand between you and the big score, and the Vultures want the harbour for themselves. Drive clean or drive loud. Just don't get caught.</p>
+  <p class="story">Solmaris is a sun-soaked coastal city, and everybody in it owes somebody something. You are <b>Riko Vale</b>, a driver for hire with a fast car and a faster reputation. Your fixer <b>Mara</b> works the marina — eight jobs stand between you and the big score, and the Vultures want the harbour for themselves. Earn <b>respect</b> to unlock iron at <b>Harbor Arms</b>, tune your ride at the <b>North Garage</b>, and park the good ones at your <b>safehouse</b>. Drive clean or drive loud. Just don't get caught.</p>
   <button id="btn-new" class="menu-btn">▶ New Game</button>
   <button id="btn-continue" class="menu-btn secondary">Continue</button>
   <div id="menu-complete">★ STORY COMPLETE — all 8 missions done ★</div>
   <div id="menu-missions"></div>
   <div class="controls">
     <b>WASD</b> move / drive &nbsp;·&nbsp; <b>Mouse</b> camera &nbsp;·&nbsp; <b>Click</b> shoot &nbsp;·&nbsp; <b>F</b> punch<br>
-    <b>E</b> enter / exit car, talk, pick up &nbsp;·&nbsp; <b>Shift</b> run &nbsp;·&nbsp; <b>Space</b> jump / handbrake<br>
-    <b>R</b> reload &nbsp;·&nbsp; <b>N</b> radio &nbsp;·&nbsp; <b>P</b> pause &nbsp;·&nbsp; <b>M</b> mute &nbsp;·&nbsp; progress autosaves
+    <b>1–5</b> weapons &nbsp;·&nbsp; <b>Q</b> weapon wheel &nbsp;·&nbsp; <b>R</b> reload &nbsp;·&nbsp; <b>E</b> enter / jack car, talk, shop<br>
+    <b>Shift</b> run &nbsp;·&nbsp; <b>Space</b> jump / handbrake &nbsp;·&nbsp; <b>N</b> radio &nbsp;·&nbsp; <b>P</b> pause &nbsp;·&nbsp; <b>M</b> mute &nbsp;·&nbsp; progress autosaves
   </div>
   <div class="fineprint">An original game: own city, characters, story, art and sound. No Rockstar / GTA content. Keyboard + mouse.</div>
 </div>
