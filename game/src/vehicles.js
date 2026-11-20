@@ -3,7 +3,7 @@
 // police cars the wanted system spawns. Two-circle collision per car keeps
 // them out of buildings without ever feeling sticky.
 import * as THREE from 'three';
-import { ROAD_LINES, ROAD_W, PITCH, CAR, TRAFFIC_COUNT, PARKED_COUNT, PALETTE, WORLD_HALF, CITY_HALF } from './config.js';
+import { ROAD_LINES, ROAD_W, PITCH, CAR, TRAFFIC_COUNT, PARKED_COUNT, PALETTE, WORLD_HALF, CITY_HALF, CAR_NAMES, UPGRADES } from './config.js';
 import { clamp, dist2D, intRange, pick, range, circleVsBox } from './utils.js';
 import { sfx } from './audio.js';
 
@@ -143,10 +143,12 @@ export function createVehicles(scene, city, effects, rng) {
     scene.add(parts.group);
     const car = {
       type, colorHex, role,
+      name: CAR_NAMES[type] || 'Car',
       mesh: parts.group, wheels: parts.wheels, frontWheels: parts.frontWheels,
       lightRed: parts.lightRed, lightBlue: parts.lightBlue, bodyMesh: parts.bodyMesh,
       x, z, heading, speed: 0,
-      damage: 0, dead: false, shotProof: false, smokeTimer: 0,
+      damage: 0, maxDamage: CAR.maxDamage, dead: false, shotProof: false, smokeTimer: 0,
+      upgrades: { engine: 0, armor: 0, turbo: false },
       axis: 'x', line: 0, dir: 1, cruise: 10,
       turn: null, steerVisual: 0, sirenPhase: Math.random() * 10,
     };
@@ -226,10 +228,23 @@ export function createVehicles(scene, city, effects, rng) {
     if (i >= 0) cars.splice(i, 1);
   }
 
-  /** Arcade drive step shared by the player car and police cars. */
+  /** Arcade drive step shared by the player car and police cars. Garage
+   * upgrades stack multiplicatively on the base figures. */
   function drive(car, throttle, steer, dt, handbrake) {
-    const maxSpeed = car.type === 'sports' ? CAR.sportsMax : car.type === 'truck' ? CAR.truckMax : car.type === 'police' ? CAR.maxSpeed + 6 : CAR.maxSpeed;
-    const accel = car.type === 'sports' ? CAR.sportsAccel : car.type === 'truck' ? CAR.truckAccel : CAR.accel;
+    let maxSpeed = car.type === 'sports' ? CAR.sportsMax : car.type === 'truck' ? CAR.truckMax : car.type === 'police' ? CAR.maxSpeed + 6 : CAR.maxSpeed;
+    let accel = car.type === 'sports' ? CAR.sportsAccel : car.type === 'truck' ? CAR.truckAccel : CAR.accel;
+    const up = car.upgrades;
+    if (up) {
+      const engine = UPGRADES.engine[(up.engine || 0) - 1];
+      if (engine) {
+        maxSpeed *= engine.speed;
+        accel *= engine.accel;
+      }
+      if (up.turbo) {
+        maxSpeed *= UPGRADES.turbo.speed;
+        accel *= UPGRADES.turbo.accel;
+      }
+    }
     if (throttle > 0) {
       car.speed += accel * throttle * dt;
       if (car.speed > maxSpeed) car.speed = maxSpeed;
@@ -279,7 +294,7 @@ export function createVehicles(scene, city, effects, rng) {
     if (car.dead) return;
     if (car.shotProof) return; // staged screenshot car: it must survive the warm-up
     car.damage += amount;
-    if (car.damage >= CAR.maxDamage) {
+    if (car.damage >= (car.maxDamage || CAR.maxDamage)) {
       car.dead = true;
       effects.explosion(car.x, 1, car.z);
       sfx.explosion();

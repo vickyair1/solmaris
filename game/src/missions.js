@@ -7,6 +7,43 @@ import { MISSIONS, PLACES } from './config.js';
 import { dist2D } from './utils.js';
 import { sfx } from './audio.js';
 
+// What Mara says when a job starts and when it lands. Shown on the dialogue
+// card — the story's voice, not just a briefing screen.
+const DIALOGUE = {
+  'first-fare': {
+    start: { name: 'Mara', role: 'FIXER · MARINA', line: 'Drive clean, Riko. That crate is worth more than both of us.', color: '#d88a2e' },
+    done: { name: 'Mara', role: 'FIXER · MARINA', line: 'Clean run. You\'re hired, driver.', color: '#d88a2e' },
+  },
+  getaway: {
+    start: { name: 'Mara', role: 'FIXER · MARINA', line: 'My runner\'s cornered in the east alley. Get him out — and don\'t bring the law home.', color: '#d88a2e' },
+    done: { name: 'Mara', role: 'FIXER · MARINA', line: 'You lose cops like a bad habit. I like it.', color: '#d88a2e' },
+  },
+  'harbor-heat': {
+    start: { name: 'Mara', role: 'FIXER · MARINA', line: 'The Vultures took my ledger. Take it back — all of it.', color: '#d88a2e' },
+    done: { name: 'Mara', role: 'FIXER · MARINA', line: 'The harbour is mine again. Kestrel will hear about this.', color: '#d88a2e' },
+  },
+  'the-exchange': {
+    start: { name: 'Mara', role: 'FIXER · MARINA', line: 'Four checkpoints, one clock. The buyer doesn\'t wait.', color: '#d88a2e' },
+    done: { name: 'Mara', role: 'FIXER · MARINA', line: 'On time, every time. That\'s why I call you.', color: '#d88a2e' },
+  },
+  'night-shift': {
+    start: { name: 'Mara', role: 'FIXER · MARINA', line: 'Four drops, one night. The city sleeps — you don\'t.', color: '#d88a2e' },
+    done: { name: 'Mara', role: 'FIXER · MARINA', line: 'Every drop made. Even the night respects you now.', color: '#d88a2e' },
+  },
+  'rat-trap': {
+    start: { name: 'Mara', role: 'FIXER · MARINA', line: 'Kestrel\'s stash is sitting in that warehouse. Go collect it.', color: '#d88a2e' },
+    done: { name: 'Mara', role: 'FIXER · MARINA', line: 'Five Vultures down and the stash is home. Beautiful.', color: '#d88a2e' },
+  },
+  'bank-job': {
+    start: { name: 'Mara', role: 'FIXER · MARINA', line: 'The bank\'s cash drop, and the Vultures are already inside. Beat them to it.', color: '#d88a2e' },
+    done: { name: 'Mara', role: 'FIXER · MARINA', line: 'You robbed a bank before breakfast. Don\'t let it go to your head.', color: '#d88a2e' },
+  },
+  'the-big-score': {
+    start: { name: 'Mara', role: 'FIXER · MARINA', line: 'The armoured truck. The harbour cash. This is the one, Riko.', color: '#d88a2e' },
+    done: { name: 'Mara', role: 'FIXER · MARINA', line: 'It\'s done. Solmaris is yours now — all of it.', color: '#d88a2e' },
+  },
+};
+
 export function createMissions(scene, effects) {
   // The beacon: a column of light, a ring on the ground, a spinning diamond.
   const beaconMat = new THREE.MeshBasicMaterial({
@@ -154,8 +191,14 @@ export function createMissions(scene, effects) {
     state.truck = null;
     world.money += mission.reward;
     world.completedMissions.push(mission.id);
+    const rep = world.respect ? world.respect.add(world, mission.respect || 0, mission.name, true) : { rankUp: false };
     sfx.missionComplete();
-    world.hud.showBanner(`MISSION COMPLETE — ${mission.name}`, `+$${mission.reward.toLocaleString('en-US')}`, 3.2);
+    let sub = `+$${mission.reward.toLocaleString('en-US')}`;
+    if (mission.respect) sub += ` · +${mission.respect} respect`;
+    if (rep.rankUp) sub += ` · now ${rep.rank}`;
+    world.hud.showBanner(`MISSION COMPLETE — ${mission.name}`, sub, 3.2);
+    const line = DIALOGUE[mission.id] && DIALOGUE[mission.id].done;
+    if (line) world.hud.showDialogue(line.name, line.role, line.line, line.color);
     if (state.index >= MISSIONS.length) {
       world.hud.showBanner('STORY COMPLETE', 'You own this city now, Riko.', 5);
     }
@@ -178,7 +221,14 @@ export function createMissions(scene, effects) {
 
   function startMission(world) {
     const mission = currentMission();
-    if (!mission || state.active) return;
+    if (!mission || state.active) return false;
+    // The finale is gated on respect: Mara only trusts a KINGPIN with it.
+    if (mission.respectRequired && world.respect && world.respect.state.points < mission.respectRequired) {
+      const need = mission.respectRequired - world.respect.state.points;
+      world.hud.flash(`Mara: not yet — ${need} more respect before the Big Score. Missions, fares and getaways all pay.`, 'warning');
+      world.hud.showDialogue('Mara', 'FIXER · MARINA', `The Big Score needs a KINGPIN, Riko. ${need} more respect and it's yours.`, '#d88a2e');
+      return false;
+    }
     state.active = true;
     state.stepIndex = 0;
     state.kills = 0;
@@ -186,7 +236,10 @@ export function createMissions(scene, effects) {
     state.startedAt = world.time;
     sfx.missionStart();
     world.hud.showBriefing(mission);
+    const line = DIALOGUE[mission.id] && DIALOGUE[mission.id].start;
+    if (line) world.hud.showDialogue(line.name, line.role, line.line, line.color);
     startStep(world);
+    return true;
   }
 
   function update(dt, world) {

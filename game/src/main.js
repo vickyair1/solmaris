@@ -9,27 +9,34 @@
 // sound), input (keys/mouse), city (the world), effects (particles),
 // vehicles (cars + traffic), pedestrians (the crowds), player (Riko on
 // foot), police (wanted + pursuit), combat (shooting + enemies), missions
-// (the story), hud (menus + minimap), save (localStorage), shots (staged
-// screenshots). All original: own city, characters, names and story.
+// (the story), weapons (the arsenal + wheel), respect (standing + ranks),
+// garage (car upgrades), shops (Harbor Arms + safehouse), hud (menus +
+// minimap), save (localStorage), shots (staged screenshots). All original:
+// own city, characters, names and story.
 import * as THREE from 'three';
 // Import order is the dossier's order (the kit lists sources depth-first
-// from here), so the systems that carry the game — story, side work, the
-// helicopter, pickups — come first, ahead of the plumbing.
+// from here), so the systems that carry the game — story, arsenal, respect,
+// garage, shops, side work, the helicopter, pickups, combat, the law —
+// come first, ahead of the plumbing.
 import { CAMERA, DAY_MINUTES_START, DAY_MINUTES_PER_SECOND, MISSIONS, PLACES, WANTED } from './config.js';
-import { mulberry32, queryParam, clamp, dist2D, angleDiff } from './utils.js';
+import { mulberry32, queryParam, clamp, dist2D, angleDiff, moneyString } from './utils.js';
 import { createMissions } from './missions.js';
+import { createWeapons } from './weapons.js';
+import { createRespect } from './respect.js';
+import { createGarage } from './garage.js';
+import { createShops } from './shops.js';
 import { createActivities } from './activities.js';
 import { createHelicopter } from './helicopter.js';
 import { createPickups } from './pickups.js';
-import { setMuted, isMuted, updateEngine, nextStation, sfx } from './audio.js';
+import { createCombat } from './combat.js';
+import { createPolice } from './police.js';
+import { createPlayer } from './player.js';
+import { createVehicles } from './vehicles.js';
+import { createPedestrians } from './pedestrians.js';
 import { createInput } from './input.js';
 import { buildCity } from './city.js';
 import { createEffects } from './effects.js';
-import { createVehicles } from './vehicles.js';
-import { createPedestrians } from './pedestrians.js';
-import { createPlayer } from './player.js';
-import { createPolice } from './police.js';
-import { createCombat } from './combat.js';
+import { setMuted, isMuted, updateEngine, nextStation, sfx } from './audio.js';
 import { createHUD } from './hud.js';
 import { loadSave, writeSave, clearSave, applySave } from './save.js';
 import { stageShot } from './shots.js';
@@ -71,6 +78,7 @@ const world = {
   playing: false,
   paused: false,
   briefingOpen: false,
+  panelOpen: false, // a shop/garage panel is up; the action pauses like a briefing
   prompt: '',
   interactPressed: false,
   lastShotAt: -99,
@@ -98,6 +106,10 @@ world.combat = createCombat(scene, world.city, world.effects, rng);
 world.missions = createMissions(scene, world.effects);
 world.pickups = createPickups(scene, world.effects);
 world.activities = createActivities(scene, world.effects, rng);
+world.weapons = createWeapons();
+world.respect = createRespect();
+world.garage = createGarage(scene, world.effects, rng);
+world.shops = createShops(scene, world.effects);
 world.save = () => writeSave(world);
 
 world.vehicles.initTraffic(world.playerX, world.playerZ);
@@ -176,9 +188,20 @@ world.onPedHit = (ped, car) => {
   // Only the player's own car earns heat; traffic accidents are not your crime.
   if (car && car.role === 'player') world.police.addWanted(WANTED.hitPed, world);
 };
-world.onEnemyKilled = () => world.missions.onEnemyKilled();
+world.onEnemyKilled = () => {
+  world.missions.onEnemyKilled();
+  if (world.respect) world.respect.add(world, 3, 'Vulture down');
+};
 world.onBusted = () => handleBusted();
-world.onWantedChange = () => {};
+// A clean getaway: the heat peaked at 3+ stars and is now gone entirely.
+let peakWanted = 0;
+world.onWantedChange = (level) => {
+  if (level > peakWanted) peakWanted = level;
+  if (level === 0) {
+    if (peakWanted >= 3 && world.respect) world.respect.add(world, 25, 'clean getaway');
+    peakWanted = 0;
+  }
+};
 
 // ---- menus ------------------------------------------------------------------
 function startPlaying() {
@@ -199,6 +222,10 @@ function resetWorld() {
   world.combat.clearEnemies();
   world.police.reset();
   world.heli.reset();
+  world.weapons = createWeapons();
+  world.respect = createRespect();
+  world.shops.state.storedCar = null;
+  world.player.state.jack = null;
   world.player.healFull();
   if (world.player.state.inCar) {
     const car = world.player.state.car;
@@ -256,7 +283,65 @@ world.hud = createHUD({
     setMuted(!isMuted());
     world.hud.setMutedLabel(isMuted());
   },
+  onPanelClose: () => {
+    closePanel();
+  },
+  onPanelMessage: (msg) => {
+    world.hud.flash(msg, 'warning');
+  },
 });
+
+// ---- shop / garage panels ---------------------------------------------------
+// A panel pauses the action (like a briefing) and frees the mouse for clicks.
+function closePanel() {
+  world.panelOpen = false;
+  world.hud.closePanel();
+  world.input.requestLock();
+}
+
+function openPanel(kind) {
+  world.panelOpen = true;
+  world.input.exitLock();
+  if (kind === 'gun') {
+    world.hud.openPanel({
+      title: 'HARBOR ARMS',
+      subtitle: 'Dax: cash up front, no questions, no returns.',
+      getItems: () => world.shops.gunItems(world),
+      getMoney: () => moneyString(world.money),
+      onBuy: (id) => world.shops.buyGun(world, id),
+    });
+  } else if (kind === 'garage') {
+    world.hud.openPanel({
+      title: 'NORTH GARAGE',
+      subtitle: 'Juno: bring cash, leave faster.',
+      getItems: () => world.garage.items(world),
+      getMoney: () => moneyString(world.money),
+      onBuy: (id) => {
+        if (id === 'exitcar') {
+          world.player.exitCar();
+          closePanel();
+          return { ok: true };
+        }
+        return world.garage.buy(world, id);
+      },
+    });
+  } else if (kind === 'safehouse') {
+    world.hud.openPanel({
+      title: 'SAFEHOUSE',
+      subtitle: 'Home. The only place in Solmaris that wants nothing from you.',
+      getItems: () => world.shops.safehouseItems(world),
+      getMoney: () => moneyString(world.money),
+      onBuy: (id) => {
+        if (id === 'exitcar') {
+          world.player.exitCar();
+          closePanel();
+          return { ok: true };
+        }
+        return world.shops.safehouseAction(world, id);
+      },
+    });
+  }
+}
 
 // Missions pause the action while the briefing is up.
 const showBriefing = world.hud.showBriefing;
@@ -271,9 +356,21 @@ function handleInteraction() {
   const player = world.player;
   world.interactPressed = input.justPressed('KeyE');
   if (!world.interactPressed) return;
+  if (world.panelOpen || player.state.jack) return;
+  // Shops claim E before the car does.
+  if (!player.state.inCar && world.shops.nearGunshop(world)) {
+    openPanel('gun');
+    return;
+  }
+  if (world.shops.nearSafehouse(world)) {
+    openPanel('safehouse');
+    return;
+  }
   if (player.state.inCar) {
-    // At the spray garage, E resprays first (and only exits when it declines).
-    if (world.activities.trySprayGarage(world)) return;
+    if (world.garage.nearGarage(world)) {
+      openPanel('garage');
+      return;
+    }
     player.exitCar();
     sfx.click();
     return;
@@ -281,25 +378,43 @@ function handleInteraction() {
   const car = world.vehicles.nearestCar(player.state.x, player.state.z, 4.5);
   if (car) {
     if (car.role === 'traffic') {
-      // Jacking a moving car: the driver bails, the law may notice.
-      world.vehicles.topUpTraffic(player.state.x, player.state.z);
-      if (world.police.nearestDistance(player.state.x, player.state.z) < 70) {
+      // Jacking a moving car: the driver brakes, Riko works the door.
+      player.startJack(world, car);
+    } else {
+      if (world.police.nearestDistance(player.state.x, player.state.z) < 40) {
         world.police.addWanted(WANTED.stealCar, world);
       }
-    } else if (world.police.nearestDistance(player.state.x, player.state.z) < 40) {
-      world.police.addWanted(WANTED.stealCar, world);
+      player.enterCar(car);
+      sfx.click();
     }
-    player.enterCar(car);
-    sfx.click();
   }
   // Otherwise the E press falls through to missions (Mara, pickups).
 }
 
 function computePrompt() {
   const player = world.player;
+  if (player.state.jack) {
+    world.prompt = 'Jacking the car… stay close';
+    return;
+  }
   if (player.state.inCar) {
-    const spray = world.activities.sprayPrompt(world);
-    world.prompt = spray || 'E — Get out   ·   Space — Handbrake';
+    if (world.garage.nearGarage(world)) {
+      world.prompt = 'E — North Garage (upgrades, respray)';
+      return;
+    }
+    if (world.shops.nearSafehouse(world)) {
+      world.prompt = 'E — Safehouse (park this car)';
+      return;
+    }
+    world.prompt = 'E — Get out   ·   Space — Handbrake';
+    return;
+  }
+  if (world.shops.nearGunshop(world)) {
+    world.prompt = 'E — Harbor Arms (weapons, ammo)';
+    return;
+  }
+  if (world.shops.nearSafehouse(world)) {
+    world.prompt = 'E — Safehouse (rest, save, garage)';
     return;
   }
   const step = world.missions.state.active ? world.missions.currentStep() : null;
@@ -321,7 +436,7 @@ function computePrompt() {
     world.prompt = car.role === 'traffic' ? 'E — Jack the car' : 'E — Get in the car';
     return;
   }
-  world.prompt = 'WASD — Move   ·   Shift — Run   ·   Click — Shoot   ·   F — Punch   ·   P — Pause';
+  world.prompt = 'WASD — Move   ·   Shift — Run   ·   Click — Shoot   ·   1–5/Q — Weapons   ·   P — Pause';
 }
 
 // ---- the update ---------------------------------------------------------------
@@ -408,16 +523,23 @@ function update(dt) {
     const station = nextStation();
     world.hud.flash(`♪ ${station.name} — ${station.desc}`, '');
   }
-  if (input.justPressed('KeyR') && player.state.ammo < 12 && player.state.reloading <= 0) {
-    player.state.reloading = 1.2;
-    sfx.reload();
+  // The arsenal: number keys swap instantly, Q opens the wheel, R reloads.
+  for (const code of ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5']) {
+    if (input.justPressed(code)) world.weapons.selectByKey(code, world);
   }
+  if (input.justPressed('KeyQ')) {
+    world.weapons.state.wheelOpen = !world.weapons.state.wheelOpen;
+    sfx.click();
+  }
+  if (input.justPressed('KeyR')) world.weapons.startReload(world);
   if (input.justPressed('KeyF')) world.combat.playerPunch(world);
 
   handleInteraction();
 
-  // Move the player (on foot or driving).
-  if (player.state.inCar && player.state.car) {
+  // Move the player (on foot or driving) — or finish the carjacking.
+  if (player.state.jack) {
+    player.updateJack(dt, world);
+  } else if (player.state.inCar && player.state.car) {
     const car = player.state.car;
     player.updateCarCamera(dt, input);
     let axes = input.moveAxes();
@@ -466,6 +588,9 @@ function update(dt) {
   world.missions.update(dt, world);
   world.pickups.update(dt, world);
   world.activities.update(dt, world);
+  world.weapons.update(dt, world);
+  world.garage.update(dt, world);
+  world.shops.update(dt, world);
   world.effects.update(dt, world.time);
   world.city.update(dt, world.time, world.playerX, world.playerZ, world.dayMinutes);
   world.hud.update(dt, world);
@@ -506,7 +631,7 @@ function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
 
-  if (gameState === 'play' && !world.briefingOpen) {
+  if (gameState === 'play' && !world.briefingOpen && !world.panelOpen) {
     accumulator += dt;
     let steps = 0;
     while (accumulator >= STEP && steps < 5) {
@@ -544,6 +669,10 @@ function frame(now) {
     world.briefingOpen = false;
     world.hud.hideBriefing();
     world.input.requestLock();
+  }
+  // Same for a shop panel: Esc or P closes it and play resumes.
+  if (world.panelOpen && (world.input.justPressed('KeyP') || world.input.justPressed('Escape'))) {
+    closePanel();
   }
   world.input.endFrame();
 

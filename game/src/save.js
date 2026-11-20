@@ -1,4 +1,5 @@
-// SOLMARIS — saving: money, mission progress, position, health and the clock,
+// SOLMARIS — saving: money, mission progress, position, health, the clock,
+// and (v2) the arsenal, respect and the car parked in the safehouse garage,
 // in localStorage. Autosaves on mission completion and when pausing; the
 // start screen offers Continue whenever a save exists.
 import { SAVE_KEY } from './config.js';
@@ -21,7 +22,7 @@ export function writeSave(world) {
   try {
     const player = world.player.state;
     const data = {
-      version: 1,
+      version: 2,
       savedAt: new Date().toISOString(),
       money: Math.floor(world.money),
       missionIndex: world.missions.state.index,
@@ -32,6 +33,9 @@ export function writeSave(world) {
       health: Math.max(1, Math.round(player.health)),
       armor: Math.round(player.armor),
       dayMinutes: Math.round(world.dayMinutes),
+      weapons: world.weapons ? world.weapons.serialize() : null,
+      respect: world.respect ? world.respect.serialize() : null,
+      shops: world.shops ? world.shops.serialize() : null,
     };
     window.localStorage.setItem(SAVE_KEY, JSON.stringify(data));
     return true;
@@ -46,7 +50,8 @@ export function clearSave() {
   } catch { /* storage unavailable; nothing to clear */ }
 }
 
-/** Apply a loaded save to a fresh world. */
+/** Apply a loaded save to a fresh world. v1 saves (no weapons/respect/shops)
+ * load fine — the new systems just start fresh. */
 export function applySave(world, data) {
   world.money = typeof data.money === 'number' ? data.money : 0;
   world.completedMissions = Array.isArray(data.completedMissions) ? data.completedMissions : [];
@@ -56,6 +61,9 @@ export function applySave(world, data) {
   const player = world.player.state;
   player.health = typeof data.health === 'number' ? data.health : 100;
   player.armor = typeof data.armor === 'number' ? data.armor : 0;
+  if (data.weapons && world.weapons) world.weapons.apply(data.weapons);
+  if (data.respect && world.respect) world.respect.apply(data.respect);
+  if (data.shops && world.shops) world.shops.apply(data.shops);
   if (typeof data.playerX === 'number' && typeof data.playerZ === 'number') {
     world.player.teleport(data.playerX, data.playerZ, data.playerHeading || 0);
   }

@@ -146,6 +146,7 @@ export function createActivities(scene, effects, rng) {
       effects.sparkle(state.dest.x, 1.5, state.dest.z);
       sfx.missionComplete();
       world.hud.flash(`Fare complete — +$${state.fare}`, '');
+      if (world.respect) world.respect.add(world, 10, 'fare');
       if (world.save) world.save();
       clearFare(world);
     }

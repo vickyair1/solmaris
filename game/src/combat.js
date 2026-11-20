@@ -76,12 +76,12 @@ export function createCombat(scene, city, effects, rng) {
   }
 
   /** Ray vs a standing person (sphere at chest height). Returns distance or Infinity. */
-  function rayVsPerson(origin, dir, px, pz, radius) {
+  function rayVsPerson(origin, dir, px, pz, radius, range) {
     const cx = px - origin.x;
     const cy = 1.2 - origin.y;
     const cz = pz - origin.z;
     const t = cx * dir.x + cy * dir.y + cz * dir.z;
-    if (t < 0 || t > PLAYER.gunRange) return Infinity;
+    if (t < 0 || t > range) return Infinity;
     const dx = cx - dir.x * t;
     const dy = cy - dir.y * t;
     const dz = cz - dir.z * t;
@@ -90,13 +90,13 @@ export function createCombat(scene, city, effects, rng) {
   }
 
   /** Distance along the ray where it first crosses a building (2D, ground plane). */
-  function rayVsBuildings(origin, dir) {
-    const endX = origin.x + dir.x * PLAYER.gunRange;
-    const endZ = origin.z + dir.z * PLAYER.gunRange;
+  function rayVsBuildings(origin, dir, range) {
+    const endX = origin.x + dir.x * range;
+    const endZ = origin.z + dir.z * range;
     // Binary search the first blocked point along the ground-projected segment.
     if (!segmentBlocked(origin.x, origin.z, endX, endZ, city.colliders)) return Infinity;
     let lo = 0;
-    let hi = PLAYER.gunRange;
+    let hi = range;
     for (let i = 0; i < 12; i += 1) {
       const mid = (lo + hi) / 2;
       const mx = origin.x + dir.x * mid;
@@ -107,37 +107,15 @@ export function createCombat(scene, city, effects, rng) {
     return hi;
   }
 
-  /** The player pulls the trigger. Handles ammo, tracers, hits and wanted heat. */
-  function playerShoot(world, camera) {
-    const player = world.player;
-    if (player.state.inCar || player.state.dead) return;
-    if (player.state.reloading > 0 || fireTimer > 0) return;
-    if (player.state.ammo <= 0) {
-      player.state.reloading = PLAYER.reloadTime;
-      sfx.reload();
-      return;
-    }
-    player.state.ammo -= 1;
-    fireTimer = PLAYER.fireInterval;
-    sfx.shoot();
-    world.lastShotAt = world.time;
-    world.lastShotX = player.state.x;
-    world.lastShotZ = player.state.z;
-
-    raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-    const origin = raycaster.ray.origin.clone();
-    const dir = raycaster.ray.direction.clone();
-    const muzzle = new THREE.Vector3(player.state.x, player.state.y + 1.45, player.state.z)
-      .add(new THREE.Vector3(Math.sin(player.state.heading), 0, -Math.cos(player.state.heading)).multiplyScalar(0.6));
-    effects.flash(muzzle.x, muzzle.y, muzzle.z, 0xffe9a0, 1.1, 0.06);
-
-    let bestT = rayVsBuildings(origin, dir);
+  /** One pellet/round downrange: find what it hits and apply the damage. */
+  function firePellet(world, origin, dir, muzzle, def) {
+    let bestT = rayVsBuildings(origin, dir, def.range);
     let hitKind = bestT === Infinity ? 'none' : 'building';
     let hitTarget = null;
     // Enemies first.
     for (const enemy of enemies) {
       if (enemy.dead) continue;
-      const t = rayVsPerson(origin, dir, enemy.x, enemy.z, 0.9);
+      const t = rayVsPerson(origin, dir, enemy.x, enemy.z, 0.9, def.range);
       if (t < bestT) {
         bestT = t;
         hitKind = 'enemy';
@@ -147,7 +125,7 @@ export function createCombat(scene, city, effects, rng) {
     // Pedestrians.
     for (const ped of world.peds.peds) {
       if (ped.state === 'down') continue;
-      const t = rayVsPerson(origin, dir, ped.x, ped.z, 0.8);
+      const t = rayVsPerson(origin, dir, ped.x, ped.z, 0.8, def.range);
       if (t < bestT) {
         bestT = t;
         hitKind = 'ped';
@@ -157,7 +135,7 @@ export function createCombat(scene, city, effects, rng) {
     // Cars: a fat circle at the car's centre, only if the ray is low enough.
     for (const car of world.vehicles.cars) {
       if (car.dead) continue;
-      const t = rayVsPerson(origin, dir, car.x, car.z, 2.3);
+      const t = rayVsPerson(origin, dir, car.x, car.z, 2.3, def.range);
       if (t < bestT && origin.y + dir.y * t < 2.2) {
         bestT = t;
         hitKind = 'car';
@@ -165,12 +143,12 @@ export function createCombat(scene, city, effects, rng) {
       }
     }
     const hitPoint = bestT === Infinity
-      ? origin.clone().add(dir.clone().multiplyScalar(PLAYER.gunRange))
+      ? origin.clone().add(dir.clone().multiplyScalar(def.range))
       : origin.clone().add(dir.clone().multiplyScalar(bestT));
     showTracer(muzzle, hitPoint, world.time);
 
     if (hitKind === 'enemy') {
-      hitTarget.health -= PLAYER.gunDamage;
+      hitTarget.health -= def.damage;
       effects.hitPuff(hitPoint.x, hitPoint.y, hitPoint.z);
       hitTarget.barFg.scale.x = 1.2 * clamp(hitTarget.health / ENEMY_HEALTH, 0, 1);
       hitTarget.barFg.material.color.setHex(hitTarget.health > 50 ? 0x40d040 : hitTarget.health > 25 ? 0xe8c832 : 0xd04040);
@@ -187,13 +165,56 @@ export function createCombat(scene, city, effects, rng) {
       world.police.addWanted(2, world);
     } else if (hitKind === 'car') {
       effects.sparks(hitPoint.x, hitPoint.y, hitPoint.z, 6);
-      world.vehicles.damageCar(hitTarget, PLAYER.gunDamage, hitPoint.x, hitPoint.z, world);
+      world.vehicles.damageCar(hitTarget, def.damage, hitPoint.x, hitPoint.z, world);
       if (hitTarget.type === 'police') world.police.addWanted(2, world);
     } else if (hitKind === 'building') {
       effects.sparks(hitPoint.x, Math.max(0.4, hitPoint.y), hitPoint.z, 5);
     } else {
       // A shot in public still draws attention.
       world.police.addWanted(1, world);
+    }
+  }
+
+  /** The player pulls the trigger. Damage, range, fire rate and spread all
+   * come from the selected weapon; the Bulldog fires six pellets at once. */
+  function playerShoot(world, camera) {
+    const player = world.player;
+    if (player.state.inCar || player.state.dead) return;
+    if (fireTimer > 0) return;
+    const def = world.weapons.current();
+    if (def.id === 'fists') {
+      playerPunch(world);
+      fireTimer = def.interval;
+      return;
+    }
+    if (!world.weapons.consumeShot()) {
+      // Dry magazine: reload if there is anything left in the reserve.
+      const ammo = world.weapons.currentAmmo();
+      if (ammo && ammo.reserve > 0) world.weapons.startReload(world);
+      else if (world.hud) world.hud.flash(`${def.name} — dry. Buy ammo at Harbor Arms`, 'warning');
+      fireTimer = 0.3;
+      return;
+    }
+    fireTimer = def.interval;
+    sfx.shoot();
+    world.lastShotAt = world.time;
+    world.lastShotX = player.state.x;
+    world.lastShotZ = player.state.z;
+
+    raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+    const origin = raycaster.ray.origin.clone();
+    const baseDir = raycaster.ray.direction.clone();
+    const muzzle = new THREE.Vector3(player.state.x, player.state.y + 1.45, player.state.z)
+      .add(new THREE.Vector3(Math.sin(player.state.heading), 0, -Math.cos(player.state.heading)).multiplyScalar(0.6));
+    effects.flash(muzzle.x, muzzle.y, muzzle.z, 0xffe9a0, 1.1, 0.06);
+    for (let p = 0; p < def.pellets; p += 1) {
+      const dir = baseDir.clone();
+      if (def.spread > 0) {
+        dir.x += (rng() - 0.5) * 2 * def.spread;
+        dir.y += (rng() - 0.5) * 2 * def.spread;
+        dir.normalize();
+      }
+      firePellet(world, origin, dir, muzzle, def);
     }
   }
 

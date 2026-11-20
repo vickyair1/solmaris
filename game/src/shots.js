@@ -66,6 +66,7 @@ function stagePolice(world, count, behindX, behindZ, heading, gap, speed, spacin
     car.pathIndex = 0;
     car.stuckTimer = 0;
     car.repathAt = 0;
+    car.callSign = world.police.nextCallsign(); // the dispatch board names them
     world.police.policeCars.push(car);
     cars.push(car);
   }
@@ -86,10 +87,16 @@ export function stageShot(name, world) {
   if (shot === 'chase') {
     // COVER: mission 2, mid-getaway at golden hour — 3 stars, four units on
     // the tail, Air One overhead, oncoming traffic and people on the sidewalks.
+    // The dispatch board names the pursuit; the weapon slots and the respect
+    // bar show the loadout Riko earned.
     world.missions.state.index = 1;
     world.missions.state.active = true;
     world.missions.state.stepIndex = 1;
     world.missions.state.kills = 0;
+    world.respect.state.points = 290; // HUSTLER
+    world.weapons.state.owned.push('smg');
+    world.weapons.state.ammo.smg = { mag: 30, reserve: 90 };
+    world.weapons.select('smg', world);
     world.police.setWanted(3, world);
     // Camera tilted up (0.56) so the helicopter sits inside the frame while
     // the player's car still shows at the bottom of the frame.
@@ -107,12 +114,21 @@ export function stageShot(name, world) {
   }
 
   if (shot === 'foot') {
-    // On foot at the marina, pistol out, Vultures ahead — mission 3.
+    // On foot at the marina, weapon wheel open, Vultures ahead — mission 3.
+    // The wheel, the dispatch board (2 stars), Mara's dialogue card and the
+    // respect bar are all in the frame.
     world.missions.state.index = 2;
     world.missions.state.active = true;
     world.missions.state.stepIndex = 1;
     world.missions.state.kills = 1;
     world.missions.state.killsNeeded = 4;
+    world.respect.state.points = 260; // HUSTLER
+    world.weapons.state.owned.push('smg');
+    world.weapons.state.ammo.smg = { mag: 30, reserve: 90 };
+    world.weapons.select('smg', world);
+    world.weapons.state.wheelOpen = true;
+    world.police.setWanted(2, world);
+    world.hud.showDialogue('Mara', 'FIXER · MARINA', 'The Vultures took my ledger. Take it back — all of it.', '#d88a2e', 120);
     world.player.teleport(-58, 206, 0);
     world.player.state.camYaw = 0;
     world.player.state.camPitch = 0.3;
@@ -134,11 +150,17 @@ export function stageShot(name, world) {
     world.missions.state.index = 7;
     world.missions.state.active = true;
     world.missions.state.stepIndex = 2;
+    world.respect.state.points = 950; // KINGPIN — the finale's own rank
+    world.weapons.state.owned.push('smg', 'shotgun', 'rifle');
+    world.weapons.state.ammo.smg = { mag: 30, reserve: 90 };
+    world.weapons.state.ammo.shotgun = { mag: 6, reserve: 24 };
+    world.weapons.state.ammo.rifle = { mag: 8, reserve: 32 };
+    world.weapons.select('rifle', world);
     world.police.setWanted(4, world);
     stageDrive(world, 'truck', 0x9aa0a8, 3.5, 0, Math.PI, 16, 0.55);
     stagePolice(world, 4, 3.5, 0, Math.PI, 12, 30, 8);
     stagePeds(world, [[-9.5, -12, 0], [9.5, -8, Math.PI]]);
-    world.money = 5400;
+    world.money = 25400;
     world.dayMinutes = 12 * 60 + 40;
     return;
   }

@@ -52,8 +52,6 @@ export function createPlayer(scene, city) {
     speed: 0,
     health: PLAYER.maxHealth,
     armor: 0,
-    ammo: PLAYER.magSize,
-    reloading: 0,
     inCar: false,
     car: null,
     walkPhase: 0,
@@ -62,6 +60,7 @@ export function createPlayer(scene, city) {
     aimYawOffset: 0, // mouse offset while driving; recentres on its own
     holdCam: false, // staged screenshots hold the camera angle
     dead: false,
+    jack: null, // { car, t, cruise } while a carjacking is in progress
   };
 
   function collide(px, pz) {
@@ -119,10 +118,6 @@ export function createPlayer(scene, city) {
     // Health regen after a quiet stretch.
     if (world.time - state.lastDamageAt > PLAYER.regenDelay && state.health < PLAYER.maxHealth && state.health > 0) {
       state.health = Math.min(PLAYER.maxHealth, state.health + PLAYER.regenRate * dt);
-    }
-    if (state.reloading > 0) {
-      state.reloading -= dt;
-      if (state.reloading <= 0) state.ammo = PLAYER.magSize;
     }
     // Animate the mesh.
     const swing = Math.sin(state.walkPhase) * clamp(state.speed / PLAYER.runSpeed, 0, 1) * 0.7;
@@ -201,12 +196,54 @@ export function createPlayer(scene, city) {
     camera.lookAt(lookX, lookY, lookZ);
   }
 
+  /** Start jacking a moving car: the driver brakes, Riko works the door
+   * for just under a second, then the car is his. Walk away and it aborts. */
+  function startJack(world, car) {
+    if (state.inCar || state.jack || !car || car.role !== 'traffic') return false;
+    state.jack = { car, t: 0, cruise: car.cruise };
+    car.cruise = 0; // the driver slams the brakes
+    car.speed = 0;
+    return true;
+  }
+
+  function updateJack(dt, world) {
+    const jack = state.jack;
+    if (!jack) return;
+    const car = jack.car;
+    // Walked off, or the car died mid-jack: abort and give the driver back the wheel.
+    if (car.dead || dist2D(state.x, state.z, car.x, car.z) > 6) {
+      if (!car.dead) car.cruise = jack.cruise;
+      state.jack = null;
+      if (world.hud) world.hud.flash('Jack cancelled', 'warning');
+      return;
+    }
+    jack.t += dt;
+    if (jack.t < 0.9) return;
+    state.jack = null;
+    // The driver bails and runs; the law may notice.
+    const driver = world.peds.spawnAt(car.x + 2.5, car.z + 2.5, Math.PI);
+    if (driver) world.peds.scatter(car.x, car.z, 24);
+    world.vehicles.topUpTraffic(state.x, state.z);
+    if (world.police.nearestDistance(state.x, state.z) < 70) {
+      world.police.addWanted(1, world);
+    }
+    const name = car.name || 'Car';
+    state.inCar = true;
+    state.car = car;
+    car.role = 'player';
+    group.visible = false;
+    if (world.respect) world.respect.add(world, 5, 'carjack');
+    if (world.hud) world.hud.showBanner(`VEHICLE STOLEN: ${name}`, 'The driver won\'t be pressing charges. Probably.', 2.4);
+  }
+
   return {
     state,
     mesh: group,
     updateFoot,
     updateCarCamera,
     updateCamera,
+    startJack,
+    updateJack,
     enterCar(car) {
       state.inCar = true;
       state.car = car;

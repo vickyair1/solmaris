@@ -113,6 +113,7 @@ export const MISSIONS = [
     name: 'First Fare',
     giver: 'Mara',
     reward: 400,
+    respect: 60,
     briefing: 'Mara needs a driver she can trust. Pick up the crate at the docks and bring it to the north garage. No heat, no hurry — just drive clean.',
     steps: [
       { type: 'goto', label: 'Pick up the crate at the docks', target: 'docks', radius: 6 },
@@ -125,6 +126,7 @@ export const MISSIONS = [
     name: 'Getaway',
     giver: 'Mara',
     reward: 800,
+    respect: 90,
     briefing: 'One of Mara\'s runners is cornered in the east alley and the cops are already rolling. Get him, then lose the heat and bring him to the safehouse.',
     steps: [
       { type: 'goto', label: 'Reach the runner in the east alley', target: 'alley', radius: 6 },
@@ -137,6 +139,7 @@ export const MISSIONS = [
     name: 'Harbor Heat',
     giver: 'Mara',
     reward: 1500,
+    respect: 120,
     briefing: 'The Vultures grabbed the harbour ledger. They are holding the marina — four of them, armed. Clear them out and bring the ledger home.',
     steps: [
       { type: 'goto', label: 'Reach the marina', target: 'marina', radius: 10 },
@@ -150,6 +153,7 @@ export const MISSIONS = [
     name: 'The Exchange',
     giver: 'Mara',
     reward: 2000,
+    respect: 140,
     briefing: 'A buyer is waiting at the west docks and the window is short. Four checkpoints, one clock. Drive like the money depends on it — it does.',
     steps: [
       { type: 'timed', label: 'Hit every checkpoint before the clock runs out', target: 'docksWest', radius: 8, time: 150, checkpoints: ['cp1', 'cp2', 'cp3', 'docksWest'] },
@@ -160,6 +164,7 @@ export const MISSIONS = [
     name: 'Night Shift',
     giver: 'Mara',
     reward: 2500,
+    respect: 160,
     briefing: 'Mara\'s late courier never showed, and four drops are still waiting across town. One clock, four stops — the city at dusk is yours, but the money is not.',
     steps: [
       { type: 'timed', label: 'Make every drop before the clock runs out', target: 'docksWest', radius: 8, time: 150, checkpoints: ['cp1', 'hospital', 'cp3', 'docksWest'] },
@@ -170,6 +175,7 @@ export const MISSIONS = [
     name: 'Rat Trap',
     giver: 'Mara',
     reward: 3000,
+    respect: 180,
     briefing: 'Kestrel\'s crew is holed up in the old warehouse by the hideout, sitting on a stash that belongs to Mara. Five of them, armed. Go in loud, come out rich.',
     steps: [
       { type: 'goto', label: 'Reach the warehouse by the hideout', target: 'hideout', radius: 10 },
@@ -183,6 +189,7 @@ export const MISSIONS = [
     name: 'Bank Job',
     giver: 'Mara',
     reward: 3500,
+    respect: 220,
     briefing: 'Solmaris Bank keeps a cash drop in the back, and the Vultures are already inside casing it. Beat them to it: clear the crew, take the cash, and vanish before the sirens find you.',
     steps: [
       { type: 'goto', label: 'Reach Solmaris Bank', target: 'bank', radius: 8 },
@@ -196,6 +203,8 @@ export const MISSIONS = [
     name: 'The Big Score',
     giver: 'Mara',
     reward: 5000,
+    respect: 300,
+    respectRequired: 900, // the finale: Mara only trusts a KINGPIN with the harbour cash
     briefing: 'An armoured truck is sitting at the bank, full of harbour cash. Take it, outrun everything the city throws at you, and bring it to the hideout. This is the one, Riko.',
     steps: [
       { type: 'goto', label: 'Reach the armoured truck at the bank', target: 'bank', radius: 8 },
@@ -219,10 +228,80 @@ export const PLACES = {
   hideout: { x: -174, z: -174, label: 'Hideout' },
   hospital: { x: 116, z: 116, label: 'Hospital' },
   policeStation: { x: -116, z: -58, label: 'Police HQ' },
+  gunshop: { x: -58, z: -116, label: 'Harbor Arms' },
+  sprayShop: { x: 58, z: -174, label: 'North Garage' },
   cp1: { x: -174, z: -116, label: 'Checkpoint 1' },
   cp2: { x: 58, z: -116, label: 'Checkpoint 2' },
   cp3: { x: 174, z: 116, label: 'Checkpoint 3' },
   spawn: { x: 0, z: 174, label: 'Start' },
+};
+
+// ---- weapons ---------------------------------------------------------------
+// Five slots on the wheel (keys 1-5, Q to open the wheel). All names are
+// original. rank = the respect rank index that unlocks the purchase.
+export const WEAPONS = [
+  { id: 'fists', name: 'FISTS', short: 'Fists', key: '1', damage: 25, range: 2.4, mag: 0, interval: 0.4, pellets: 1, spread: 0, price: 0, rank: 0, desc: 'Always with you. Quiet, free, personal.' },
+  { id: 'pistol', name: 'SPARROW 9', short: 'Pistol', key: '2', damage: 34, range: 70, mag: 12, interval: 0.22, pellets: 1, spread: 0, price: 0, rank: 0, startReserve: 72, desc: 'Riko\'s carry pistol. Reliable at any range.' },
+  { id: 'smg', name: 'HORNET', short: 'SMG', key: '3', damage: 18, range: 55, mag: 30, interval: 0.09, pellets: 1, spread: 0.02, price: 1200, rank: 1, startReserve: 90, auto: true, desc: 'Full-auto hose. Burns ammo, wins fights.' },
+  { id: 'shotgun', name: 'BULLDOG', short: 'Shotgun', key: '4', damage: 9, range: 28, mag: 6, interval: 0.8, pellets: 6, spread: 0.09, price: 2500, rank: 2, startReserve: 24, desc: 'Six pellets of bad news, up close.' },
+  { id: 'rifle', name: 'LONGSHOT', short: 'Rifle', key: '5', damage: 80, range: 120, mag: 8, interval: 0.5, pellets: 1, spread: 0, price: 4500, rank: 3, startReserve: 32, desc: 'One shot, one Vulture, from across the block.' },
+];
+
+// Ammo packs sold at Harbor Arms (weapon id -> rounds per pack, price).
+export const AMMO_PACKS = {
+  pistol: { rounds: 48, price: 80 },
+  smg: { rounds: 90, price: 120 },
+  shotgun: { rounds: 24, price: 100 },
+  rifle: { rounds: 32, price: 150 },
+};
+export const VEST_PRICE = 300; // +50 armour, Harbor Arms
+export const MEDKIT_PRICE = 150; // full heal, Harbor Arms
+
+// ---- respect ---------------------------------------------------------------
+// Riko's standing in Solmaris. Missions, fares, kills and clean getaways all
+// pay respect; respect ranks unlock weapons, garage tiers and the finale.
+// Story missions alone pay 970 — enough to reach KINGPIN before the Big Score.
+export const RANKS = [
+  { name: 'NOBODY', at: 0 },
+  { name: 'RUNNER', at: 100 },
+  { name: 'HUSTLER', at: 250 },
+  { name: 'BIG SHOT', at: 500 },
+  { name: 'KINGPIN', at: 900 },
+];
+export const RESPECT = {
+  fare: 10,
+  kill: 3,
+  carjack: 5,
+  escape: 25, // dropped from 3+ stars back to zero
+};
+
+// ---- garage upgrades -------------------------------------------------------
+// Bought at the North Garage (in the car, E to open). Engine and turbo stack
+// multiplicatively on top speed and acceleration; armour raises the damage
+// a car can take before it burns. Upgrades live on the car — store it at the
+// safehouse to keep them.
+export const UPGRADES = {
+  engine: [
+    { tier: 1, name: 'Engine I — Tuned', price: 600, speed: 1.12, accel: 1.1, rank: 0 },
+    { tier: 2, name: 'Engine II — Street', price: 1400, speed: 1.25, accel: 1.2, rank: 0 },
+    { tier: 3, name: 'Engine III — Race', price: 2800, speed: 1.4, accel: 1.3, rank: 2 },
+  ],
+  armor: [
+    { tier: 1, name: 'Plating I — Reinforced', price: 800, maxDamage: 150, rank: 0 },
+    { tier: 2, name: 'Plating II — Armoured', price: 1800, maxDamage: 220, rank: 1 },
+  ],
+  turbo: { name: 'Turbocharger', price: 1200, speed: 1.08, accel: 1.15, rank: 1 },
+  paint: { name: 'Respray', price: 150 },
+};
+export const SPRAY_HEAT_PRICE = 200; // respray that also wipes the wanted level
+
+// ---- car model names (original) --------------------------------------------
+export const CAR_NAMES = {
+  sedan: 'Corvina',
+  sports: 'Tempest GT',
+  taxi: 'Corvina Cab',
+  truck: 'Bison Hauler',
+  police: 'Interceptor',
 };
 
 // ---- districts -------------------------------------------------------------

@@ -1,7 +1,9 @@
 // SOLMARIS — the HUD: wanted stars, money, clock, mission objective, health
-// and armour, the minimap, prompts and banners — plus the start screen, the
+// and armour, the minimap, prompts and banners — plus the weapon slots and
+// wheel, the respect bar, the police dispatch board, dialogue cards, the
+// vehicle panel, and the shop/garage panels — plus the start screen, the
 // pause menu and the mission briefing. All DOM over the 3D canvas.
-import { ROAD_LINES, ROAD_W, CITY_HALF, WORLD_HALF, BEACH_Z, WATER_Z, MISSIONS, districtAt } from './config.js';
+import { ROAD_LINES, ROAD_W, CITY_HALF, WORLD_HALF, BEACH_Z, WATER_Z, MISSIONS, PLACES, WEAPONS, districtAt } from './config.js';
 import { clockString, moneyString, dist2D } from './utils.js';
 import { currentStation, audioUnlocked } from './audio.js';
 
@@ -17,6 +19,11 @@ export function createHUD(callbacks) {
   const mapCtx = minimap.getContext('2d');
   let bannerTimer = null;
   let flashTimer = null;
+  let dialogueTimer = null;
+  let weaponSig = '';
+  let dispatchSig = '';
+  let wheelSig = '';
+  let panelOpts = null;
 
   function toMapX(x) {
     return MAP_SIZE / 2 + x * MAP_SCALE;
@@ -89,6 +96,21 @@ export function createHUD(callbacks) {
         ctx.fillRect(toMapX(item.x) - 2, toMapZ(item.z) - 2, 4, 4);
       }
     }
+    // Shops: $ Harbor Arms (gold), G North Garage (orange), H safehouse (green).
+    ctx.font = 'bold 11px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    for (const [place, color, glyph] of [
+      [PLACES.gunshop, '#ffe93a', '$'],
+      [PLACES.garage, '#ff9030', 'G'],
+      [PLACES.safehouse, '#3aff88', 'H'],
+    ]) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(toMapX(place.x), toMapZ(place.z), 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#111111';
+      ctx.fillText(glyph, toMapX(place.x), toMapZ(place.z) + 4);
+    }
     // Objective marker: pulsing diamond (yellow when a job is live, green
     // when idle — Mara's marina, or a fare already aboard the cab).
     const marker = world.missions.markerTarget()
@@ -139,15 +161,139 @@ export function createHUD(callbacks) {
     stars.innerHTML = html;
   }
 
+  /** The weapon slots under the money: key, name, ammo — or the price when
+   * it is still on the shelf at Harbor Arms. Rebuilt only when it changes. */
+  function updateWeapons(world) {
+    const w = world.weapons;
+    const sig = `${w.state.current}|${w.state.owned.join(',')}|${w.state.owned.map((id) => { const a = w.state.ammo[id]; return a ? `${a.mag}/${a.reserve}` : ''; }).join(',')}|${w.state.reloading}`;
+    if (sig === weaponSig) return;
+    weaponSig = sig;
+    let html = '';
+    for (const def of WEAPONS) {
+      const owned = w.state.owned.includes(def.id);
+      const sel = w.state.current === def.id;
+      const ammo = w.state.ammo[def.id];
+      const line = !owned
+        ? `<div class="wprice">$${def.price.toLocaleString('en-US')}</div>`
+        : def.id === 'fists'
+          ? '<div class="wammo">∞</div>'
+          : `<div class="wammo">${w.state.reloading && sel ? 'RELOADING' : `${ammo.mag} / ${ammo.reserve}`}</div>`;
+      html += `<div class="wslot ${sel ? 'sel' : ''} ${owned ? '' : 'locked'}"><div class="wkey">${def.key}</div><div class="wname">${def.name}</div>${line}</div>`;
+    }
+    $('weapons').innerHTML = html;
+  }
+
+  /** The respect bar: rank, points, and the road to the next rank. */
+  function updateRespect(world) {
+    const r = world.respect;
+    const rank = r.rank();
+    const next = r.nextRank();
+    $('respect-label').innerHTML = `${rank.name} <span class="rpts">${r.state.points}${next ? ` / ${next.at}` : ' — MAX'}</span>`;
+    $('respect-fill').style.width = `${Math.round(r.progress() * 100)}%`;
+  }
+
+  /** The dispatch board: every responding unit, nearest first. Only while hot. */
+  function updateDispatch(world) {
+    const wanted = world.police.wanted;
+    if (wanted === 0) {
+      if (dispatchSig !== '') {
+        dispatchSig = '';
+        $('dispatch').innerHTML = '';
+      }
+      return;
+    }
+    const units = world.police.units(world);
+    const sig = `${wanted}|${units.map((u) => `${u.name}:${u.dist}:${u.status}`).join(',')}`;
+    if (sig === dispatchSig) return;
+    dispatchSig = sig;
+    let html = `<div class="disp-head">● SPD RESPONSE &nbsp; ${units.length} UNIT${units.length === 1 ? '' : 'S'} · CODE ${wanted}</div>`;
+    for (const u of units.slice(0, 6)) {
+      html += `<div class="disp-row"><span>${u.name}</span><span>${u.dist} m</span><span class="dstat ${u.status.replace(' ', '')}">${u.status}</span></div>`;
+    }
+    if (units.length > 6) html += `<div class="disp-row"><span>+${units.length - 6} more units</span><span></span><span></span></div>`;
+    $('dispatch').innerHTML = html;
+  }
+
+  /** The vehicle panel: model, condition, speed and gear — only while driving. */
+  function updateVehicle(world) {
+    const car = world.player.state.inCar ? world.player.state.car : null;
+    if (!car) {
+      $('vehicle-name').textContent = '';
+      $('speed').textContent = '';
+      return;
+    }
+    const up = car.upgrades || {};
+    const tuned = (up.engine || 0) > 0 || (up.armor || 0) > 0 || up.turbo ? ' ★' : '';
+    $('vehicle-name').textContent = `${car.name}${tuned}`;
+    const condition = Math.round(100 * (1 - car.damage / (car.maxDamage || 100)));
+    const fill = $('condition-fill');
+    fill.style.width = `${Math.max(0, condition)}%`;
+    fill.className = `fill ${condition < 30 ? 'low' : ''}`;
+    const kmh = Math.round(Math.abs(car.speed) * 3.6);
+    const gear = kmh < 25 ? 'G1' : kmh < 50 ? 'G2' : kmh < 80 ? 'G3' : kmh < 115 ? 'G4' : 'G5';
+    $('speed').textContent = `${gear} · ${kmh} km/h`;
+  }
+
+  /** The weapon wheel (Q): a radial picker over the action. */
+  function updateWheel(world) {
+    const w = world.weapons;
+    const wheel = $('wheel');
+    if (!w.state.wheelOpen) {
+      if (wheelSig !== '') {
+        wheelSig = '';
+        wheel.classList.remove('show');
+      }
+      return;
+    }
+    const sig = `${w.state.current}|${w.state.owned.join(',')}`;
+    if (sig === wheelSig && wheel.classList.contains('show')) return;
+    wheelSig = sig;
+    wheel.querySelectorAll('.wheel-slot').forEach((el) => el.remove());
+    const angles = [-90, -18, 54, 126, 198];
+    WEAPONS.forEach((def, i) => {
+      const owned = w.state.owned.includes(def.id);
+      const sel = w.state.current === def.id;
+      const ammo = w.state.ammo[def.id];
+      const a = (angles[i] * Math.PI) / 180;
+      const el = document.createElement('div');
+      el.className = `wheel-slot ${sel ? 'sel' : ''} ${owned ? '' : 'locked'}`;
+      el.style.left = `${180 + Math.cos(a) * 132 - 56}px`;
+      el.style.top = `${180 + Math.sin(a) * 132 - 30}px`;
+      el.innerHTML = `<div class="wkey">${def.key}</div><div class="wname">${def.name}</div>${
+        !owned ? `<div class="wprice">$${def.price.toLocaleString('en-US')}</div>`
+          : def.id === 'fists' ? '<div class="wammo">∞</div>'
+            : `<div class="wammo">${ammo.mag} / ${ammo.reserve}</div>`}`;
+      if (owned) el.addEventListener('click', () => w.select(def.id, world));
+      wheel.appendChild(el);
+    });
+    wheel.classList.add('show');
+  }
+
   function update(dt, world) {
     if (!world.playing) return;
     setStars(world.police.wanted, world.police.hiding, world.time);
+    const insight = $('insight');
+    if (world.police.wanted === 0) {
+      insight.textContent = '';
+      insight.className = '';
+    } else if (world.police.inSight) {
+      insight.textContent = 'IN SIGHT — break line of sight';
+      insight.className = 'seen';
+    } else {
+      insight.textContent = 'HIDDEN — stay out of sight';
+      insight.className = 'hidden';
+    }
     $('money').textContent = moneyString(world.money);
     $('clock').textContent = clockString(world.dayMinutes);
     $('radio').textContent = audioUnlocked()
       ? `♪ ${currentStation().name} — ${currentStation().desc}`
       : '';
     $('district').textContent = districtAt(world.playerX, world.playerZ);
+    updateWeapons(world);
+    updateRespect(world);
+    updateDispatch(world);
+    updateVehicle(world);
+    updateWheel(world);
     let objective = world.missions.objectiveText();
     let marker = world.missions.markerTarget();
     let missionName = world.missions.state.active ? world.missions.currentMission().name : 'SOLMARIS';
@@ -171,18 +317,24 @@ export function createHUD(callbacks) {
     $('health-fill').className = `fill ${hp < 30 ? 'low' : ''}`;
     $('armor-fill').style.width = `${armor}%`;
     $('armor-row').style.display = armor > 0 ? 'flex' : 'none';
-    $('ammo').textContent = world.player.state.inCar
-      ? ''
-      : `🔫 ${world.player.state.reloading > 0 ? 'RELOADING' : `${world.player.state.ammo} / 12`}`;
-    const speed = world.player.state.inCar && world.player.state.car
-      ? Math.abs(world.player.state.car.speed) * 3.6
-      : 0;
-    $('speed').textContent = world.player.state.inCar ? `${Math.round(speed)} km/h` : '';
+    if (world.player.state.inCar) {
+      $('ammo').textContent = '';
+    } else {
+      const def = world.weapons.current();
+      const ammo = world.weapons.currentAmmo();
+      $('ammo').textContent = ammo
+        ? `🔫 ${def.name} — ${world.weapons.state.reloading ? 'RELOADING' : `${ammo.mag} / ${ammo.reserve}`}`
+        : `🥊 ${def.name}`;
+    }
     $('prompt').textContent = world.prompt || '';
     // Busted meter.
     const busted = world.police.bustedProgress;
     $('busted-meter').style.display = busted > 0 ? 'block' : 'none';
     $('busted-fill').style.width = `${busted * 100}%`;
+    // Carjack progress.
+    const jack = world.player.state.jack;
+    $('jack-meter').style.display = jack ? 'block' : 'none';
+    if (jack) $('jack-fill').style.width = `${Math.min(100, (jack.t / 0.9) * 100)}%`;
     // Damage vignette.
     const vignette = $('vignette');
     const sinceDamage = world.time - world.player.state.lastDamageAt;
@@ -205,6 +357,64 @@ export function createHUD(callbacks) {
     el.className = `show ${kind || ''}`;
     if (flashTimer) clearTimeout(flashTimer);
     flashTimer = setTimeout(() => el.classList.remove('show'), 3200);
+  }
+
+  /** The dialogue card: a character speaks. Seconds defaults to 6; staged
+   * screenshots pass a long time so the card is still there at capture. */
+  function showDialogue(name, role, line, color, seconds) {
+    $('dlg-portrait').style.background = color || '#d88a2e';
+    $('dlg-portrait').textContent = name.split(' ').map((w) => w[0]).join('').slice(0, 2);
+    $('dlg-name').textContent = name;
+    $('dlg-role').textContent = role || '';
+    $('dlg-line').textContent = line;
+    $('dialogue').classList.add('show');
+    if (dialogueTimer) clearTimeout(dialogueTimer);
+    dialogueTimer = setTimeout(() => $('dialogue').classList.remove('show'), (seconds || 6) * 1000);
+  }
+
+  /** A shop/garage panel. opts: { title, subtitle, getItems, getMoney, onBuy,
+   * onClose }. Rows re-render after every purchase, so prices, locks and the
+   * money line always match the game. */
+  function openPanel(opts) {
+    panelOpts = opts;
+    $('shop-title').textContent = opts.title;
+    $('shop-sub').textContent = opts.subtitle || '';
+    const render = () => {
+      $('shop-money').textContent = opts.getMoney ? opts.getMoney() : '';
+      const rows = $('shop-rows');
+      rows.innerHTML = '';
+      for (const item of opts.getItems()) {
+        const row = document.createElement('div');
+        row.className = 'shop-row';
+        const info = document.createElement('div');
+        info.className = 'sinfo';
+        const nm = document.createElement('div');
+        nm.className = 'sname';
+        nm.textContent = item.name;
+        const ds = document.createElement('div');
+        ds.className = 'sdesc';
+        ds.textContent = item.locked ? (item.lockReason || 'Locked') : item.desc;
+        info.append(nm, ds);
+        const btn = document.createElement('button');
+        btn.className = 'shop-buy';
+        btn.textContent = item.owned ? 'OWNED' : item.locked ? 'LOCKED' : item.price > 0 ? `BUY $${item.price.toLocaleString('en-US')}` : 'DO IT';
+        btn.disabled = !!(item.owned || item.locked);
+        btn.addEventListener('click', () => {
+          const res = opts.onBuy(item.id);
+          if (!res.ok && res.reason && callbacks.onPanelMessage) callbacks.onPanelMessage(res.reason);
+          render();
+        });
+        row.append(info, btn);
+        rows.appendChild(row);
+      }
+    };
+    render();
+    $('shop-panel').classList.add('show');
+  }
+
+  function closePanel() {
+    panelOpts = null;
+    $('shop-panel').classList.remove('show');
   }
 
   function showBriefing(mission) {
@@ -249,11 +459,15 @@ export function createHUD(callbacks) {
   $('btn-title').addEventListener('click', () => callbacks.onTitle());
   $('btn-briefing-go').addEventListener('click', () => callbacks.onBriefingClose());
   $('btn-mute').addEventListener('click', () => callbacks.onMute());
+  $('shop-close').addEventListener('click', () => callbacks.onPanelClose());
 
   return {
     update,
     showBanner,
     flash,
+    showDialogue,
+    openPanel,
+    closePanel,
     showBriefing,
     hideBriefing,
     showMenu,

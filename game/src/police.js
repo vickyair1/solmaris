@@ -7,6 +7,11 @@ import { WANTED, ROAD_LINES, CITY_HALF, PALETTE } from './config.js';
 import { clamp, dist2D, angleDiff, segmentBlocked, pick, range } from './utils.js';
 import { updateSiren } from './audio.js';
 
+// Solmaris PD callsigns — every pursuit unit gets a name, so the dispatch
+// panel reads like a real response instead of a number.
+const CALLSIGNS = ['VIPER-7', 'COBRA-3', 'HAWK-9', 'SHARK-2', 'WOLF-5', 'FALCON-12', 'RAVEN-4', 'TIGER-8'];
+const HELI_CALLSIGN = 'AIR-1';
+
 export function createPolice(scene, vehicles, city, effects, rng) {
   const policeCars = [];
   const roadblocks = []; // police cars parked across the road ahead (3+ stars)
@@ -18,6 +23,13 @@ export function createPolice(scene, vehicles, city, effects, rng) {
   let bustedTimer = 0;
   let hiding = false;
   let pathTimer = 0;
+  let callsignCursor = 0;
+
+  function nextCallsign() {
+    const name = CALLSIGNS[callsignCursor % CALLSIGNS.length];
+    callsignCursor += 1;
+    return name;
+  }
 
   function spawnPoliceCar(px, pz) {
     // Pick a road point 60-100 units from the player, on an actual street.
@@ -39,6 +51,7 @@ export function createPolice(scene, vehicles, city, effects, rng) {
     car.pathIndex = 0;
     car.stuckTimer = 0;
     car.repathAt = 0;
+    car.callSign = nextCallsign();
     policeCars.push(car);
     return car;
   }
@@ -96,6 +109,8 @@ export function createPolice(scene, vehicles, city, effects, rng) {
       car.path = [];
       car.pathIndex = 0;
       car.stuckTimer = 0;
+      car.callSign = 'BARRIER';
+      car.isRoadblock = true;
     }
     roadblockX = bx;
     roadblockZ = bz;
@@ -241,15 +256,44 @@ export function createPolice(scene, vehicles, city, effects, rng) {
 
   return {
     policeCars,
+    roadblocks,
     get wanted() {
       return wanted;
     },
     get hiding() {
       return hiding;
     },
+    /** True when a unit has eyes on the player right now. */
+    get inSight() {
+      return wanted > 0 && !hiding;
+    },
+    /** The dispatch board: every responding unit, nearest first, with what
+     * it is doing — pursuit, ramming, roadblock, or the helicopter overhead. */
+    units(world) {
+      const px = world.playerX;
+      const pz = world.playerZ;
+      const rows = [];
+      for (const car of policeCars) {
+        if (car.dead) continue;
+        const d = Math.round(dist2D(car.x, car.z, px, pz));
+        const status = d < 28 ? 'RAMMING' : car.stuckTimer > 2 ? 'RESPONDING' : 'CLOSING IN';
+        rows.push({ name: car.callSign || 'UNIT', dist: d, status });
+      }
+      for (const car of roadblocks) {
+        if (car.dead) continue;
+        rows.push({ name: car.callSign || 'BARRIER', dist: Math.round(dist2D(car.x, car.z, px, pz)), status: 'ROADBLOCK' });
+      }
+      if (world.heli && world.heli.active) {
+        rows.push({ name: HELI_CALLSIGN, dist: Math.round(dist2D(world.heli.state.x, world.heli.state.z, px, pz)), status: 'SPOTLIGHT' });
+      }
+      rows.sort((a, b) => a.dist - b.dist);
+      return rows;
+    },
     get bustedProgress() {
       return clamp(bustedTimer / WANTED.bustedTime, 0, 1);
     },
+    /** The next callsign in rotation (staged shots use it for their cars). */
+    nextCallsign,
     setWanted,
     addWanted(amount, world) {
       if (amount > 0) setWanted(wanted + amount, world);
