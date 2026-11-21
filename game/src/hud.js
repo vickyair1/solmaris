@@ -493,6 +493,32 @@ export function createHUD(callbacks) {
     const sinceDamage = world.time - world.player.state.lastDamageAt;
     vignette.style.opacity = sinceDamage < 0.6 ? String(0.55 * (1 - sinceDamage / 0.6)) : hp < 30 ? '0.3' : '0';
     drawMinimap(world);
+    applyShotMode(world);
+  }
+
+  /** Shot mode (set by shots.js staging): hide the HUD panels a staged
+   * screenshot does not need, so the world fills the frame. Only the
+   * panels named for this shot are hidden; everything else keeps its
+   * normal behaviour. Never set outside a staged shot, so the smoke test
+   * and normal play are untouched. */
+  const SHOT_HIDE = {
+    // Cover: mission card + stars/money/clock + vehicle/speed only.
+    chase: ['weapons', 'crew', 'dispatch', 'minimap', 'district', 'standing', 'overwatch', 'vitals', 'prompt', 'dialogue', 'btn-mute', 'radio', 'insight', 'race-hud', 'wheel', 'flash', 'banner'],
+    // On foot: mission card + stars/money/clock + vitals (health/ammo) only.
+    foot: ['weapons', 'crew', 'dispatch', 'dialogue', 'wheel', 'map-wrap', 'prompt', 'btn-mute', 'radio', 'insight', 'overwatch', 'race-hud', 'flash', 'banner'],
+    // Race: race banner + mission card + stars/money/clock + vehicle/speed.
+    race: ['weapons', 'crew', 'dispatch', 'minimap', 'district', 'standing', 'overwatch', 'vitals', 'prompt', 'dialogue', 'btn-mute', 'radio', 'insight', 'wheel', 'flash', 'banner'],
+    // Pause: the whole background HUD — the menu is the shot.
+    pause: ['objective', 'dispatch', 'top-right', 'race-hud', 'vitals', 'map-wrap', 'dialogue', 'prompt', 'wheel', 'btn-mute', 'flash', 'banner'],
+  };
+
+  function applyShotMode(world) {
+    const hide = SHOT_HIDE[world.shotMode];
+    if (!hide) return;
+    for (const id of hide) {
+      const el = $(id);
+      if (el && el.style.display !== 'none') el.style.display = 'none';
+    }
   }
 
   function showBanner(title, sub, seconds) {
