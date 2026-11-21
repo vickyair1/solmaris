@@ -1,5 +1,9 @@
 // SOLMARIS — handover program (Node 22, standard library only).
 // Round 3 (2026-11-19): resubmitted under a fresh recording; handover unchanged.
+// Round 7 (v4, 2026-11-21): crew, district standing, street races, sun charms,
+// stunt jumps, career ratings + completion, tabbed pause menu with a map,
+// three save slots, the MAULER RPG, radio tracks and the dispatch ticker.
+// Handover unchanged: a plain copy plus the kit's dossier builder.
 // Copies the playable game and its screenshots into the output directory
 // and writes the dossier the bounty scores from. It runs twice and both
 // runs must produce identical bytes, so there is no clock, no randomness
