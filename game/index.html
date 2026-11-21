@@ -25,6 +25,27 @@
   #radio:empty { display: none; }
   #district { font-size: 12px; font-weight: bold; letter-spacing: 2px; color: #dfe8f0; text-shadow: 0 1px 4px rgba(0,0,0,0.9); margin-bottom: 5px; text-transform: uppercase; }
 
+  #standing { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+  #standing .bar { height: 8px; width: 110px; }
+  #standing-label { font-size: 11px; font-weight: bold; letter-spacing: 1px; color: #dfe8f0; text-shadow: 0 1px 3px rgba(0,0,0,0.9); white-space: nowrap; }
+  #standing-fill { background: #ffe93a !important; }
+  #standing-fill.friendly { background: #7ddb6a !important; }
+  #standing-fill.low { background: #e83838 !important; }
+
+  #race-hud { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); font-size: 16px; font-weight: bold; letter-spacing: 1px; color: #40d0ff; background: rgba(8,16,26,0.72); padding: 8px 16px; border-radius: 4px; border: 1px solid rgba(64,208,255,0.4); display: none; white-space: nowrap; }
+  #overwatch { font-size: 12px; font-weight: bold; letter-spacing: 1px; color: #40d0ff; text-shadow: 0 1px 4px rgba(0,0,0,0.9); margin: 0 0 5px 0; display: none; }
+
+  #crew { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+  .crew-mini { display: flex; gap: 8px; align-items: center; background: rgba(8,16,26,0.62); border: 1px solid rgba(255,255,255,0.14); border-radius: 4px; padding: 5px 8px; text-align: left; max-width: 300px; margin-left: auto; }
+  .crew-mini.locked { opacity: 0.6; }
+  .crew-mini-portrait { width: 28px; height: 28px; border-radius: 3px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: bold; color: #111; }
+  .crew-mini-info { flex: 1; min-width: 0; }
+  .crew-mini-name { font-size: 11px; font-weight: bold; letter-spacing: 1px; }
+  .crew-mini-ability { font-size: 10px; color: #ffe93a; }
+  .crew-mini-bar { height: 4px; background: rgba(0,0,0,0.55); border-radius: 2px; margin-top: 3px; overflow: hidden; }
+  .crew-mini-fill { height: 100%; background: #40d0ff; }
+  .crew-mini-lock { font-size: 10px; color: #bcd; }
+
   #objective { position: absolute; top: 14px; left: 16px; padding: 10px 14px; max-width: 380px; border-left: 4px solid #ffe93a; }
   .obj-mission { font-size: 13px; font-weight: bold; letter-spacing: 2px; color: #ffe93a; }
   .obj-text { font-size: 16px; font-weight: bold; margin-top: 3px; text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
@@ -64,7 +85,7 @@
   #fade { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: #000; transition: opacity 0.5s; }
   #fade.show { opacity: 0.55; }
 
-  #btn-mute { position: absolute; top: 14px; right: 16px; margin-top: 178px; pointer-events: auto; background: rgba(8,16,26,0.62); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 5px 10px; font-size: 12px; cursor: pointer; }
+  #btn-mute { position: absolute; top: 14px; right: 16px; margin-top: 345px; pointer-events: auto; background: rgba(8,16,26,0.62); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 5px 10px; font-size: 12px; cursor: pointer; }
 
   #insight { font-size: 12px; font-weight: bold; letter-spacing: 2px; margin-top: 3px; text-shadow: 0 1px 4px rgba(0,0,0,0.9); }
   #insight:empty { display: none; }
@@ -90,6 +111,9 @@
   .dstat.ROADBLOCK { color: #ffe93a; }
   .dstat.CLOSINGIN { color: #ffb060; }
   .dstat.RESPONDING { color: #bcd; }
+  .dstat.FLANKING { color: #ff8ad8; }
+  .dstat.FOOTCHASE { color: #ff6060; }
+  .disp-log { font-size: 11px; color: #bcd; padding: 2px 0 0; border-top: 1px solid rgba(255,255,255,0.1); margin-top: 4px; font-style: italic; }
 
   #respect-label { font-size: 12px; font-weight: bold; letter-spacing: 1px; margin-top: 8px; text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
   #respect-label .rpts { color: #ffe93a; }
@@ -108,6 +132,7 @@
   #vehicle .bar { height: 8px; margin-top: 3px; }
   #condition-fill { background: #58d858 !important; }
   #condition-fill.low { background: #e83838 !important; }
+  #condition-pct { font-size: 11px; font-weight: bold; letter-spacing: 1px; color: #dfe8f0; text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
 
   #wheel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 360px; height: 360px; display: none; pointer-events: auto; }
   #wheel.show { display: block; }
@@ -160,6 +185,90 @@
   .dialog p { font-size: 15px; line-height: 1.6; color: #dfe8f0; }
   #briefing-giver { font-size: 13px; font-weight: bold; letter-spacing: 2px; color: #7ddb6a; margin-bottom: 10px; }
   #briefing .menu-btn { margin-top: 16px; }
+
+  /* ---------- pause menu (tabs) ---------- */
+  .pause-dialog { max-width: 980px; width: 94vw; max-height: 92vh; overflow-y: auto; text-align: left; padding: 12px 28px; }
+  .pause-dialog h2 { text-align: center; margin: 0 0 8px; }
+  #pause-tabs { display: flex; gap: 6px; justify-content: center; margin: 6px 0 8px; }
+  #pause-tabs button { padding: 7px 20px; font-size: 14px; font-weight: bold; letter-spacing: 2px; color: #dfe8f0; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); border-radius: 4px; cursor: pointer; }
+  #pause-tabs button:hover { background: rgba(255,255,255,0.16); }
+  #pause-tabs button.active { color: #111; background: #ffe93a; border-color: #ffe93a; }
+  #pause-body { min-height: 320px; }
+  #pause-foot { display: flex; gap: 10px; justify-content: center; margin-top: 8px; }
+  #pause-foot .menu-btn { width: 200px; margin: 0; }
+  .menu-btn.small { width: auto; padding: 8px 16px; font-size: 13px; margin: 4px 0; display: inline-block; }
+  .pause-section-title { font-size: 13px; font-weight: bold; letter-spacing: 2px; color: #ffe93a; margin-bottom: 8px; }
+  .pause-map-wrap { display: flex; gap: 20px; align-items: flex-start; }
+  #pause-map { border: 2px solid rgba(255,255,255,0.35); border-radius: 6px; cursor: crosshair; flex-shrink: 0; }
+  #pause-map-stats { border: 2px solid rgba(255,255,255,0.35); border-radius: 6px; cursor: crosshair; }
+  .pause-map-side { flex: 1; min-width: 0; }
+  .stand-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .stand-name { width: 110px; font-size: 13px; font-weight: bold; }
+  .stand-row .bar { flex: 1; height: 10px; }
+  .stand-row .fill { background: #ffe93a !important; }
+  .stand-val { width: 110px; font-size: 12px; color: #bcd; text-align: right; }
+  .waypoint-line { font-size: 13px; color: #40d0ff; margin: 12px 0 6px; }
+  .map-legend { font-size: 12px; color: #bcd; line-height: 1.6; margin-top: 10px; }
+  .act-head { font-size: 14px; font-weight: bold; letter-spacing: 2px; color: #7ddb6a; margin: 14px 0 6px; }
+  .story-row { display: flex; align-items: center; gap: 10px; padding: 7px 4px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 14px; }
+  .story-row.active { background: rgba(255,233,58,0.08); }
+  .story-name { flex: 1; font-weight: bold; }
+  .story-reward { color: #7ddb6a; font-weight: bold; }
+  .story-status { width: 70px; text-align: right; font-size: 12px; font-weight: bold; letter-spacing: 1px; }
+  .story-status.done { color: #7ddb6a; }
+  .story-status.active { color: #ffe93a; }
+  .story-status.ready { color: #40d0ff; }
+  .story-status.locked { color: #888; }
+  .medal { display: inline-block; min-width: 56px; text-align: center; font-size: 11px; font-weight: bold; letter-spacing: 1px; padding: 3px 6px; border-radius: 3px; }
+  .medal.gold { background: #ffd23a; color: #111; }
+  .medal.silver { background: #c8ccd2; color: #111; }
+  .medal.bronze { background: #c87a4a; color: #111; }
+  .medal.none { background: rgba(255,255,255,0.1); color: #888; }
+  .medals-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .medal-cell .medal { min-width: 0; }
+  .pause-stats { display: flex; gap: 20px; align-items: flex-start; }
+  .stats-col { flex: 1; min-width: 0; }
+  .stats-col.center { text-align: center; flex: 0 0 auto; }
+  .ring-wrap { position: relative; width: 130px; height: 130px; margin: 0 auto 12px; }
+  .ring-num { position: absolute; left: 0; right: 0; top: 48px; text-align: center; font-size: 26px; font-weight: bold; color: #ffe93a; }
+  .ring-label { position: absolute; left: 0; right: 0; top: 78px; text-align: center; font-size: 10px; letter-spacing: 2px; color: #bcd; }
+  .check-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; }
+  .check-label { width: 130px; }
+  .check-row .bar { flex: 1; height: 8px; }
+  .check-row .fill { background: #ffe93a !important; }
+  .check-val { width: 44px; text-align: right; color: #bcd; }
+  .rp-line { font-size: 14px; font-weight: bold; color: #ffe93a; margin-bottom: 6px; }
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+  .stat-cell { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 4px 10px; }
+  .stat-val { font-size: 16px; font-weight: bold; }
+  .stat-label { font-size: 11px; color: #bcd; letter-spacing: 1px; }
+  .slot-mini { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 0; border-top: 1px solid rgba(255,255,255,0.1); color: #bcd; }
+  .crew-card { display: flex; gap: 14px; align-items: flex-start; padding: 12px; border: 1px solid rgba(255,255,255,0.14); border-radius: 6px; margin-bottom: 10px; background: rgba(255,255,255,0.04); }
+  .crew-card.locked { opacity: 0.65; }
+  .crew-portrait { width: 56px; height: 56px; border-radius: 4px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: bold; color: #111; }
+  .crew-info { flex: 1; }
+  .crew-name { font-size: 16px; font-weight: bold; }
+  .crew-role { font-size: 11px; letter-spacing: 2px; color: #bcd; }
+  .crew-ability { font-size: 13px; margin-top: 5px; line-height: 1.4; }
+  .crew-status { font-size: 12px; font-weight: bold; letter-spacing: 1px; margin-top: 5px; }
+  .crew-status.ready { color: #7ddb6a; }
+  .crew-status.cooling { color: #ffb060; }
+  .crew-status.locked { color: #888; }
+  .save-slot { border: 1px solid rgba(255,255,255,0.14); border-radius: 6px; padding: 12px 14px; margin-bottom: 10px; background: rgba(255,255,255,0.04); }
+  .save-slot.active { border-color: #ffe93a; }
+  .save-slot-head { font-size: 14px; font-weight: bold; letter-spacing: 2px; }
+  .save-slot-meta { font-size: 13px; color: #bcd; margin: 6px 0 8px; }
+  .save-slot-btns { display: flex; gap: 8px; }
+
+  /* ---------- title save slots ---------- */
+  #title-slots { display: flex; gap: 12px; justify-content: center; margin: 4px 0 10px; flex-wrap: wrap; }
+  .slot-card { width: 220px; padding: 14px; background: rgba(8,16,26,0.7); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; color: #fff; cursor: pointer; text-align: left; font-family: inherit; }
+  .slot-card:hover { border-color: #ffe93a; }
+  .slot-card.active { border-color: #ffe93a; box-shadow: 0 0 12px rgba(255,233,58,0.25); }
+  .slot-card-head { font-size: 13px; font-weight: bold; letter-spacing: 2px; color: #ffe93a; }
+  .slot-card-pct { font-size: 22px; font-weight: bold; margin: 8px 0 4px; }
+  .slot-card-meta { font-size: 12px; color: #bcd; }
+  .slot-card-action { font-size: 12px; font-weight: bold; letter-spacing: 2px; color: #7ddb6a; margin-top: 10px; }
 </style>
 <script type="importmap">
 { "imports": { "three": "./vendor/three.module.min.js" } }
@@ -181,7 +290,9 @@
     <div id="clock">10:00</div>
     <div id="radio"></div>
     <div id="weapons"></div>
+    <div id="crew"></div>
   </div>
+  <div id="race-hud"></div>
   <div id="vitals">
     <div class="bar-row"><span class="bar-label">HEALTH</span><div class="bar"><div id="health-fill" class="fill" style="width:100%"></div></div></div>
     <div class="bar-row" id="armor-row" style="display:none"><span class="bar-label">ARMOUR</span><div class="bar"><div id="armor-fill" class="fill" style="width:0%"></div></div></div>
@@ -191,8 +302,10 @@
   </div>
   <div id="map-wrap">
     <div id="district">Solmaris</div>
+    <div id="standing"><span id="standing-label">NEUTRAL 50</span><div class="bar"><div id="standing-fill" class="fill" style="width:50%"></div></div></div>
+    <div id="overwatch"></div>
     <canvas id="minimap" width="190" height="190"></canvas>
-    <div id="vehicle"><div id="vehicle-name"></div><div class="bar"><div id="condition-fill" class="fill" style="width:100%"></div></div></div>
+    <div id="vehicle"><div id="vehicle-name"></div><div class="bar"><div id="condition-fill" class="fill" style="width:100%"></div></div><div id="condition-pct"></div></div>
     <div id="speed"></div>
   </div>
   <div id="dialogue" class="panel"><div id="dlg-portrait"></div><div><div id="dlg-name"></div><div id="dlg-role"></div><div id="dlg-line"></div></div></div>
@@ -201,7 +314,7 @@
   <div id="flash"></div>
   <div id="busted-meter"><div class="label">BUSTED</div><div class="bar"><div id="busted-fill" class="fill"></div></div></div>
   <div id="jack-meter"><div class="label">JACKING THE CAR…</div><div class="bar"><div id="jack-fill" class="fill"></div></div></div>
-  <div id="wheel"><div class="wheel-center">WEAPONS<br>1–5 or click</div></div>
+  <div id="wheel"><div class="wheel-center">WEAPONS<br>1–6 or click</div></div>
   <div id="shop-panel"><div class="dialog"><h2 id="shop-title"></h2><div id="shop-sub"></div><div id="shop-money"></div><div id="shop-rows"></div><button id="shop-close" class="menu-btn secondary">Close (Esc)</button></div></div>
   <button id="btn-mute">🔊 Sound on</button>
 </div>
@@ -209,26 +322,36 @@
 <div id="menu" class="overlay">
   <h1>SOLMARIS</h1>
   <div class="tagline">Sun · Streets · Score</div>
-  <p class="story">Solmaris is a sun-soaked coastal city, and everybody in it owes somebody something. You are <b>Riko Vale</b>, a driver for hire with a fast car and a faster reputation. Your fixer <b>Mara</b> works the marina — eight jobs stand between you and the big score, and the Vultures want the harbour for themselves. Earn <b>respect</b> to unlock iron at <b>Harbor Arms</b>, tune your ride at the <b>North Garage</b>, and park the good ones at your <b>safehouse</b>. Drive clean or drive loud. Just don't get caught.</p>
+  <p class="story">Solmaris is a sun-soaked coastal city, and everybody in it owes somebody something. You are <b>Riko Vale</b>, a driver for hire with a fast car and a faster reputation. Your fixer <b>Mara</b> works the marina — eight jobs stand between you and the big score, and the Vultures want the harbour for themselves. Recruit a <b>crew</b>, earn each district's <b>standing</b>, race the streets, and hunt the hidden <b>sun charms</b>. Earn <b>respect</b> to unlock iron at <b>Harbor Arms</b>, tune your ride at the <b>North Garage</b>, and park the good ones at your <b>safehouse</b>. Drive clean or drive loud. Just don't get caught.</p>
+  <div id="title-slots"></div>
   <button id="btn-new" class="menu-btn">▶ New Game</button>
   <button id="btn-continue" class="menu-btn secondary">Continue</button>
   <div id="menu-complete">★ STORY COMPLETE — all 8 missions done ★</div>
   <div id="menu-missions"></div>
   <div class="controls">
     <b>WASD</b> move / drive &nbsp;·&nbsp; <b>Mouse</b> camera &nbsp;·&nbsp; <b>Click</b> shoot &nbsp;·&nbsp; <b>F</b> punch<br>
-    <b>1–5</b> weapons &nbsp;·&nbsp; <b>Q</b> weapon wheel &nbsp;·&nbsp; <b>R</b> reload &nbsp;·&nbsp; <b>E</b> enter / jack car, talk, shop<br>
-    <b>Shift</b> run &nbsp;·&nbsp; <b>Space</b> jump / handbrake &nbsp;·&nbsp; <b>N</b> radio &nbsp;·&nbsp; <b>P</b> pause &nbsp;·&nbsp; <b>M</b> mute &nbsp;·&nbsp; progress autosaves
+    <b>1–6</b> weapons &nbsp;·&nbsp; <b>Q</b> weapon wheel &nbsp;·&nbsp; <b>R</b> reload &nbsp;·&nbsp; <b>E</b> enter / jack car, talk, shop, start race<br>
+    <b>Z / X / C</b> crew abilities &nbsp;·&nbsp; <b>Shift</b> run &nbsp;·&nbsp; <b>Space</b> jump / handbrake &nbsp;·&nbsp; <b>N</b> radio &nbsp;·&nbsp; <b>P</b> pause &nbsp;·&nbsp; <b>M</b> map &nbsp;·&nbsp; progress autosaves
   </div>
   <div class="fineprint">An original game: own city, characters, story, art and sound. No Rockstar / GTA content. Keyboard + mouse.</div>
 </div>
 
 <div id="pause" class="overlay hidden">
-  <div class="dialog">
+  <div class="dialog pause-dialog">
     <h2>PAUSED</h2>
-    <p>Solmaris waits for no one — except right now.<br>Your progress has been saved.</p>
-    <button id="btn-resume" class="menu-btn">Resume</button>
-    <button id="btn-restart" class="menu-btn secondary">Restart Story</button>
-    <button id="btn-title" class="menu-btn secondary">Main Menu</button>
+    <div id="pause-tabs">
+      <button data-tab="map">MAP</button>
+      <button data-tab="story">STORY</button>
+      <button data-tab="stats">STATS</button>
+      <button data-tab="crew">CREW</button>
+      <button data-tab="save">SAVE</button>
+    </div>
+    <div id="pause-body"></div>
+    <div id="pause-foot">
+      <button id="btn-resume" class="menu-btn">Resume</button>
+      <button id="btn-restart" class="menu-btn secondary">Restart Story</button>
+      <button id="btn-title" class="menu-btn secondary">Main Menu</button>
+    </div>
   </div>
 </div>
 
