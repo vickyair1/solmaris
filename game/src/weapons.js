@@ -1,8 +1,8 @@
-// SOLMARIS — the arsenal: five weapon slots on a wheel (keys 1-5, Q to open
+// SOLMARIS — the arsenal: six weapon slots on a wheel (keys 1-6, Q to open
 // it), bought at Harbor Arms and gated by respect rank. Fists are always
-// there; the Sparrow 9 is Riko's carry pistol; the Hornet, Bulldog and
-// Longshot are earned. Ammo is per weapon (magazine + reserve); R reloads
-// from the reserve, and the shop sells more.
+// there; the Sparrow 9 is Riko's carry pistol; the Hornet, Bulldog,
+// Longshot and the MAULER rocket launcher are earned. Ammo is per weapon
+// (magazine + reserve); R reloads from the reserve, and the shop sells more.
 import { WEAPONS, AMMO_PACKS } from './config.js';
 import { sfx } from './audio.js';
 

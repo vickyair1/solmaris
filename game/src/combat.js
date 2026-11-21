@@ -147,6 +147,36 @@ export function createCombat(scene, city, effects, rng) {
       : origin.clone().add(dir.clone().multiplyScalar(bestT));
     showTracer(muzzle, hitPoint, world.time);
 
+    // The MAULER is a rocket launcher: the round explodes where it lands
+    // and everything within 6m takes 100 damage, on top of the direct hit.
+    if (def.explosive) {
+      effects.explosion(hitPoint.x, Math.max(0.6, hitPoint.y), hitPoint.z);
+      sfx.explosion();
+      for (const enemy of enemies) {
+        if (enemy.dead) continue;
+        if (dist2D(enemy.x, enemy.z, hitPoint.x, hitPoint.z) <= 6) {
+          enemy.health -= 100;
+          enemy.barFg.scale.x = 1.2 * clamp(enemy.health / ENEMY_HEALTH, 0, 1);
+          if (enemy.health <= 0) {
+            enemy.dead = true;
+            enemy.deathTimer = 3;
+            enemy.mesh.rotation.x = Math.PI / 2;
+            enemy.mesh.position.y = 0.5;
+            if (world.onEnemyKilled) world.onEnemyKilled(enemy);
+          }
+        }
+      }
+      for (const car of world.vehicles.cars) {
+        if (car.dead) continue;
+        if (dist2D(car.x, car.z, hitPoint.x, hitPoint.z) <= 6) {
+          world.vehicles.damageCar(car, 100, hitPoint.x, hitPoint.z, world);
+        }
+      }
+      // A rocket in public is a crime all of its own.
+      world.police.addWanted(2, world, 'ARMED ASSAULT');
+      return;
+    }
+
     if (hitKind === 'enemy') {
       hitTarget.health -= def.damage;
       effects.hitPuff(hitPoint.x, hitPoint.y, hitPoint.z);
@@ -162,16 +192,16 @@ export function createCombat(scene, city, effects, rng) {
     } else if (hitKind === 'ped') {
       effects.hitPuff(hitPoint.x, hitPoint.y, hitPoint.z);
       world.peds.knockDown(hitTarget, world);
-      world.police.addWanted(2, world);
+      world.police.addWanted(2, world, 'ASSAULT');
     } else if (hitKind === 'car') {
       effects.sparks(hitPoint.x, hitPoint.y, hitPoint.z, 6);
       world.vehicles.damageCar(hitTarget, def.damage, hitPoint.x, hitPoint.z, world);
-      if (hitTarget.type === 'police') world.police.addWanted(2, world);
+      if (hitTarget.type === 'police') world.police.addWanted(2, world, 'ASSAULT');
     } else if (hitKind === 'building') {
       effects.sparks(hitPoint.x, Math.max(0.4, hitPoint.y), hitPoint.z, 5);
     } else {
       // A shot in public still draws attention.
-      world.police.addWanted(1, world);
+      world.police.addWanted(1, world, 'SHOTS FIRED');
     }
   }
 
@@ -251,7 +281,7 @@ export function createCombat(scene, city, effects, rng) {
       const dz = ped.z - pz;
       if (dx * dx + dz * dz < PLAYER.punchRange * PLAYER.punchRange && dx * fx + dz * fz > 0) {
         world.peds.knockDown(ped, world);
-        world.police.addWanted(1, world);
+        world.police.addWanted(1, world, 'ASSAULT');
       }
     }
   }

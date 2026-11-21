@@ -225,7 +225,7 @@ export function createPlayer(scene, city) {
     if (driver) world.peds.scatter(car.x, car.z, 24);
     world.vehicles.topUpTraffic(state.x, state.z);
     if (world.police.nearestDistance(state.x, state.z) < 70) {
-      world.police.addWanted(1, world);
+      world.police.addWanted(1, world, 'GRAND THEFT AUTO');
     }
     const name = car.name || 'Car';
     state.inCar = true;
@@ -233,6 +233,7 @@ export function createPlayer(scene, city) {
     car.role = 'player';
     group.visible = false;
     if (world.respect) world.respect.add(world, 5, 'carjack');
+    if (world.career) world.career.state.carsStolen += 1;
     if (world.hud) world.hud.showBanner(`VEHICLE STOLEN: ${name}`, 'The driver won\'t be pressing charges. Probably.', 2.4);
   }
 

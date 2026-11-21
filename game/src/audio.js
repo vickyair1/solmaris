@@ -219,24 +219,82 @@ export function updateSiren(active, nearestDistance) {
 }
 
 // ---- radio: three original stations, all synthesized -----------------------
-// Each station is an 8-step loop with its own pattern, tempo and voice.
-// N switches station; the HUD shows what is playing. Starts on the first
-// user gesture, like every other sound here.
+// Each station is an 8-step loop with its own pattern, tempo and voice, and
+// three named tracks (all invented: no real artists). The track advances
+// every 90s or on station switch (N); the HUD shows what is playing.
+// Starts on the first user gesture, like every other sound here.
 const STATIONS = [
-  { name: 'SOL FM', desc: 'Coastal Grooves', bass: [55, 0, 55, 65.41, 0, 55, 82.41, 73.42], stepMs: 210, wave: 'triangle', vol: 0.1 },
-  { name: 'VOLTAGE', desc: 'Night Drive', bass: [49, 49, 0, 58.27, 49, 0, 65.41, 58.27], stepMs: 170, wave: 'sawtooth', vol: 0.055 },
-  { name: 'MARINA JAZZ', desc: 'Harbour Lights', bass: [87.31, 0, 103.83, 0, 98, 0, 87.31, 0], stepMs: 260, wave: 'sine', vol: 0.12 },
+  {
+    name: 'SOL FM', desc: 'Coastal Grooves',
+    tracks: [
+      { artist: 'Mara Voss', title: 'Neon Harbor' },
+      { artist: 'The Breakers', title: 'Low Tide' },
+      { artist: 'June Alloy', title: 'Glass City' },
+    ],
+    bass: [55, 0, 55, 65.41, 0, 55, 82.41, 73.42], stepMs: 210, wave: 'triangle', vol: 0.1,
+  },
+  {
+    name: 'VOLTAGE', desc: 'Night Drive',
+    tracks: [
+      { artist: 'Static Bloom', title: 'Redline' },
+      { artist: 'Kestrel Nine', title: 'Sirens at Midnight' },
+      { artist: 'The Night Shift', title: 'Full Throttle' },
+    ],
+    bass: [49, 49, 0, 58.27, 49, 0, 65.41, 58.27], stepMs: 170, wave: 'sawtooth', vol: 0.055,
+  },
+  {
+    name: 'MARINA JAZZ', desc: 'Harbour Lights',
+    tracks: [
+      { artist: 'Lena Solmar', title: 'Pier 9 Waltz' },
+      { artist: 'The Dockside Trio', title: 'Salt Air' },
+      { artist: 'Iris Voss', title: 'Golden Hour' },
+    ],
+    bass: [87.31, 0, 103.83, 0, 98, 0, 87.31, 0], stepMs: 260, wave: 'sine', vol: 0.12,
+  },
 ];
 let stationIndex = 0;
+let trackIndex = 0;
+let trackTimer = null;
 
 export function currentStation() {
   return STATIONS[stationIndex];
+}
+
+/** The track now playing on the current station. */
+export function currentTrack() {
+  const station = STATIONS[stationIndex];
+  return station.tracks[trackIndex % station.tracks.length];
+}
+
+/** Advance to the next track on this station (every 90s, or on switch). */
+export function nextTrack() {
+  const station = STATIONS[stationIndex];
+  trackIndex = (trackIndex + 1) % station.tracks.length;
+  armTrackTimer();
+  return currentTrack();
+}
+
+/** Pick a track directly (staged screenshots set the dial). */
+export function setTrack(index) {
+  const station = STATIONS[stationIndex];
+  trackIndex = ((index % station.tracks.length) + station.tracks.length) % station.tracks.length;
+  armTrackTimer();
+  return currentTrack();
+}
+
+function armTrackTimer() {
+  if (trackTimer !== null) clearTimeout(trackTimer);
+  trackTimer = setTimeout(() => {
+    nextTrack();
+  }, 90000);
 }
 
 /** Switch to the next station; returns the station now playing. */
 export function nextStation() {
   stationIndex = (stationIndex + 1) % STATIONS.length;
   musicStep = 0;
+  trackIndex = 0;
+  armTrackTimer();
   if (musicTimer !== null) {
     clearInterval(musicTimer);
     musicTimer = null;

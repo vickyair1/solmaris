@@ -2,7 +2,7 @@
 // One source of truth so every system agrees on the size of the world.
 
 export const GAME_TITLE = 'SOLMARIS';
-export const SAVE_KEY = 'solmaris-save-v1';
+export const SAVE_KEY = 'solmaris-save-v4-1'; // slot 1; slots 2-3 are -v4-2 / -v4-3
 
 // ---- city grid -------------------------------------------------------------
 // Roads run on both axes at multiples of PITCH; blocks sit between them.
@@ -237,7 +237,7 @@ export const PLACES = {
 };
 
 // ---- weapons ---------------------------------------------------------------
-// Five slots on the wheel (keys 1-5, Q to open the wheel). All names are
+// Six slots on the wheel (keys 1-6, Q to open the wheel). All names are
 // original. rank = the respect rank index that unlocks the purchase.
 export const WEAPONS = [
   { id: 'fists', name: 'FISTS', short: 'Fists', key: '1', damage: 25, range: 2.4, mag: 0, interval: 0.4, pellets: 1, spread: 0, price: 0, rank: 0, desc: 'Always with you. Quiet, free, personal.' },
@@ -245,6 +245,7 @@ export const WEAPONS = [
   { id: 'smg', name: 'HORNET', short: 'SMG', key: '3', damage: 18, range: 55, mag: 30, interval: 0.09, pellets: 1, spread: 0.02, price: 1200, rank: 1, startReserve: 90, auto: true, desc: 'Full-auto hose. Burns ammo, wins fights.' },
   { id: 'shotgun', name: 'BULLDOG', short: 'Shotgun', key: '4', damage: 9, range: 28, mag: 6, interval: 0.8, pellets: 6, spread: 0.09, price: 2500, rank: 2, startReserve: 24, desc: 'Six pellets of bad news, up close.' },
   { id: 'rifle', name: 'LONGSHOT', short: 'Rifle', key: '5', damage: 80, range: 120, mag: 8, interval: 0.5, pellets: 1, spread: 0, price: 4500, rank: 3, startReserve: 32, desc: 'One shot, one Vulture, from across the block.' },
+  { id: 'rpg', name: 'MAULER', short: 'RPG', key: '6', damage: 150, range: 90, mag: 1, interval: 1.5, pellets: 1, spread: 0, price: 8000, rank: 4, startReserve: 6, explosive: true, desc: 'One rocket. Everything in the way, gone.' },
 ];
 
 // Ammo packs sold at Harbor Arms (weapon id -> rounds per pack, price).
@@ -253,6 +254,7 @@ export const AMMO_PACKS = {
   smg: { rounds: 90, price: 120 },
   shotgun: { rounds: 24, price: 100 },
   rifle: { rounds: 32, price: 150 },
+  rpg: { rounds: 6, price: 200 },
 };
 export const VEST_PRICE = 300; // +50 armour, Harbor Arms
 export const MEDKIT_PRICE = 150; // full heal, Harbor Arms
@@ -322,6 +324,80 @@ export function districtAt(x, z) {
   }
   return 'Solmaris';
 }
+
+// ---- crew ------------------------------------------------------------------
+// Three specialists who join Riko as the story lands: the runner he saves,
+// the lookout who watched the marina burn, and the courier who never showed.
+// Each brings one active ability on its own key, with a real cooldown.
+export const CREW = [
+  { id: 'nadia', name: 'Nadia "Ghost" Rey', short: 'NADIA', role: 'DRIVER', color: '#38b8c2', ability: 'CLEAN PLATES', key: 'KeyZ', keyLabel: 'Z', cooldown: 90, desc: 'Drops one wanted star. Ghost knows every camera blind spot in Solmaris.', recruitMission: 1, recruitText: 'Complete Getaway' },
+  { id: 'iris', name: 'Iris "Eyes" Voss', short: 'IRIS', role: 'LOOKOUT', color: '#e8c832', ability: 'OVERWATCH', key: 'KeyC', keyLabel: 'C', cooldown: 60, desc: 'Marks every cop and Vulture on the minimap for 20s, with the nearest unit\'s distance.', recruitMission: 2, recruitText: 'Complete Harbor Heat' },
+  { id: 'theo', name: 'Theo "Fix" Marlowe', short: 'THEO', role: 'MECHANIC', color: '#38a05a', ability: 'FIELD REPAIR', key: 'KeyX', keyLabel: 'X', cooldown: 120, desc: 'Repairs the current car to full condition, on the spot.', recruitMission: 4, recruitText: 'Complete Night Shift' },
+];
+
+// ---- street races ----------------------------------------------------------
+// Four time-trial races on the street grid. Start at the R marker in a car,
+// press E, and chase the checkpoints. Medals pay cash and respect; the best
+// time per race is saved. Checkpoints are PLACES keys.
+export const RACES = [
+  { id: 'marina-mile', name: 'MARINA MILE', start: 'marina', checkpoints: ['docks', 'docksWest', 'mara', 'marina'], gold: 65, silver: 90, prize: 600 },
+  { id: 'downtown-circuit', name: 'DOWNTOWN CIRCUIT', start: 'bank', checkpoints: ['cp2', 'cp3', 'hospital', 'policeStation', 'bank'], gold: 95, silver: 130, prize: 1000 },
+  { id: 'beach-run', name: 'BEACH RUN', start: 'docks', checkpoints: ['mara', 'marina', 'docksWest', 'hospital', 'docks'], gold: 90, silver: 125, prize: 1400 },
+  { id: 'northside-climb', name: 'NORTHSIDE CLIMB', start: 'cp2', checkpoints: ['safehouse', 'cp2', 'cp1', 'hideout', 'policeStation', 'garage'], gold: 80, silver: 110, prize: 2000 },
+];
+
+// ---- sun charms ------------------------------------------------------------
+// 20 hidden golden charms, all at ground level on roads, the beach and the
+// park — reachable on foot or by car, never on a rooftop. No minimap blips:
+// finding them is the point. Each pays $50 and 5 respect.
+export const CHARMS = [
+  { x: -116, z: 196 }, { x: 0, z: 224 }, { x: 116, z: 224 }, { x: -174, z: 224 },
+  { x: -58, z: 174 }, { x: 58, z: 174 }, { x: 174, z: 174 }, { x: -174, z: 116 },
+  { x: 116, z: 58 }, { x: 0, z: 58 }, { x: -29, z: -29 }, { x: -58, z: -58 },
+  { x: 174, z: -58 }, { x: -174, z: -58 }, { x: 58, z: -116 }, { x: -116, z: -116 },
+  { x: 174, z: -174 }, { x: -174, z: -174 }, { x: 0, z: -174 }, { x: 116, z: -116 },
+];
+
+// ---- stunt ramps -----------------------------------------------------------
+// Six ramps the car can hit at speed: beach dune, docks edge, the downtown
+// parking lot, the marina, a northside hill and the hospital approach.
+// Hit one faster than 12 and the car flies; land more than 15m out and it
+// counts. heading = the direction the ramp launches you.
+export const STUNT_RAMPS = [
+  { x: 0, z: 220, heading: 0 },
+  { x: -116, z: 200, heading: Math.PI / 2 },
+  { x: 87, z: -29, heading: 0 },
+  { x: -58, z: 180, heading: -Math.PI / 2 },
+  { x: 0, z: -174, heading: Math.PI },
+  { x: 116, z: 100, heading: Math.PI / 2 },
+];
+
+// ---- story acts + mission par times ----------------------------------------
+// The eight missions split into three acts, and every mission has a par time
+// for its Gold/Silver/Bronze rating (seconds, deaths break Gold).
+export const ACTS = [
+  { name: 'ACT I — SMALL TIME', from: 0, to: 2 },
+  { name: 'ACT II — HEAT', from: 3, to: 5 },
+  { name: 'ACT III — KINGPIN', from: 6, to: 7 },
+];
+
+export function actOf(missionIndex) {
+  for (const act of ACTS) {
+    if (missionIndex >= act.from && missionIndex <= act.to) return act;
+  }
+  return null;
+}
+
+export const MISSION_PARS = {
+  'first-fare': 120,
+  getaway: 240,
+  'harbor-heat': 300,
+  'the-exchange': 150,
+  'night-shift': 150,
+  'rat-trap': 360,
+  'bank-job': 360,
+  'the-big-score': 420,
+};
 
 // ---- camera ----------------------------------------------------------------
 export const CAMERA = {

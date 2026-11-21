@@ -3,7 +3,7 @@
 // clear the Vultures out, outrun the law); a beacon in the world and a blip
 // on the minimap always show where the job is.
 import * as THREE from 'three';
-import { MISSIONS, PLACES } from './config.js';
+import { MISSIONS, PLACES, districtAt } from './config.js';
 import { dist2D } from './utils.js';
 import { sfx } from './audio.js';
 
@@ -71,6 +71,7 @@ export function createMissions(scene, effects) {
     checkpointIndex: 0,
     truck: null,
     startedAt: 0,
+    deathsThisAttempt: 0, // wasted during this attempt (breaks a Gold rating)
   };
 
   function currentMission() {
@@ -185,6 +186,8 @@ export function createMissions(scene, effects) {
 
   function completeMission(world) {
     const mission = currentMission();
+    const missionIndex = state.index;
+    const elapsed = world.time - state.startedAt;
     state.active = false;
     state.index += 1;
     state.stepIndex = 0;
@@ -192,13 +195,39 @@ export function createMissions(scene, effects) {
     world.money += mission.reward;
     world.completedMissions.push(mission.id);
     const rep = world.respect ? world.respect.add(world, mission.respect || 0, mission.name, true) : { rankUp: false };
+    // The rating: par time, no deaths for Gold. It lands on the banner and
+    // in the career, and the pause menu's STORY tab shows the medal.
+    const rating = world.career
+      ? world.career.rateMission(mission.id, elapsed, state.deathsThisAttempt)
+      : null;
     sfx.missionComplete();
     let sub = `+$${mission.reward.toLocaleString('en-US')}`;
     if (mission.respect) sub += ` · +${mission.respect} respect`;
+    if (rating) sub += ` · ${rating} RATING`;
     if (rep.rankUp) sub += ` · now ${rep.rank}`;
     world.hud.showBanner(`MISSION COMPLETE — ${mission.name}`, sub, 3.2);
     const line = DIALOGUE[mission.id] && DIALOGUE[mission.id].done;
     if (line) world.hud.showDialogue(line.name, line.role, line.line, line.color);
+    // The district where the job ended remembers it.
+    if (world.standing) {
+      const finalStep = mission.steps[mission.steps.length - 1];
+      const finalTarget = finalStep && finalStep.target ? PLACES[finalStep.target] : null;
+      if (finalTarget) world.standing.addStanding(districtAt(finalTarget.x, finalTarget.z), 4, world);
+    }
+    // The crew joins as the story lands: Nadia IS the rescued runner, Iris
+    // watched the marina burn, Theo is the late courier.
+    if (world.crew) {
+      if (missionIndex === 1) {
+        world.crew.recruit('nadia', world);
+        world.hud.showDialogue('Nadia "Ghost" Rey', 'DRIVER · CREW', 'You drive like you mean it. I\'m in — plates, routes, whatever you need.', '#38b8c2');
+      } else if (missionIndex === 2) {
+        world.crew.recruit('iris', world);
+        world.hud.showDialogue('Iris "Eyes" Voss', 'LOOKOUT · CREW', 'I saw the whole marina job from the roof. Next time, I\'ll be your eyes up there.', '#e8c832');
+      } else if (missionIndex === 4) {
+        world.crew.recruit('theo', world);
+        world.hud.showDialogue('Theo "Fix" Marlowe', 'MECHANIC · CREW', 'You finished my route. Least I can do is keep your car alive.', '#38a05a');
+      }
+    }
     if (state.index >= MISSIONS.length) {
       world.hud.showBanner('STORY COMPLETE', 'You own this city now, Riko.', 5);
     }
@@ -234,6 +263,7 @@ export function createMissions(scene, effects) {
     state.kills = 0;
     state.checkpointIndex = 0;
     state.startedAt = world.time;
+    state.deathsThisAttempt = 0;
     sfx.missionStart();
     world.hud.showBriefing(mission);
     const line = DIALOGUE[mission.id] && DIALOGUE[mission.id].start;
@@ -290,7 +320,7 @@ export function createMissions(scene, effects) {
     } else if (step.type === 'steal') {
       const truck = state.truck;
       if (truck && world.player.state.inCar && world.player.state.car === truck) {
-        world.police.setWanted(4, world);
+        world.police.setWanted(4, world, 'ARMED ROBBERY');
         world.hud.flash('Four stars! Get to the hideout!', 'warning');
         advanceStep(world);
       } else if (truck && truck.dead) {
@@ -334,6 +364,7 @@ export function createMissions(scene, effects) {
       state.kills = 0;
       state.checkpointIndex = 0;
       state.truck = null;
+      state.deathsThisAttempt = 0;
     },
   };
 }

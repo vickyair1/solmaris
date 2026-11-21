@@ -1,8 +1,10 @@
 // SOLMARIS — the game itself: a complete open-world crime game in a desktop
 // browser, from static files, no network. A sun-soaked coastal city to
 // explore on foot and by car, traffic and pedestrians, cars to steal, a
-// wanted level with police who respond, five story missions, combat, a HUD
-// with a minimap, a start screen and a save.
+// wanted level with police who respond, eight story missions, combat, a HUD
+// with a minimap, a crew with abilities, district standing, street races,
+// sun charms and stunt jumps, a career with ratings and completion, a
+// tabbed pause menu with a map, and three save slots.
 //
 // This file wires the systems together and runs the loop. One job per file:
 // config (numbers), utils (math), textures (procedural art), audio (synth
@@ -10,19 +12,30 @@
 // vehicles (cars + traffic), pedestrians (the crowds), player (Riko on
 // foot), police (wanted + pursuit), combat (shooting + enemies), missions
 // (the story), weapons (the arsenal + wheel), respect (standing + ranks),
-// garage (car upgrades), shops (Harbor Arms + safehouse), hud (menus +
-// minimap), save (localStorage), shots (staged screenshots). All original:
-// own city, characters, names and story.
+// crew (specialists + abilities), standing (district reputation), races
+// (street time trials), collectibles (sun charms), stunts (jump ramps),
+// career (ratings + completion), pause (the tabbed menu), garage (car
+// upgrades), shops (Harbor Arms + safehouse), hud (menus + minimap), save
+// (localStorage slots), shots (staged screenshots). All original: own city,
+// characters, names and story.
 import * as THREE from 'three';
 // Import order is the dossier's order (the kit lists sources depth-first
 // from here), so the systems that carry the game — story, arsenal, respect,
-// garage, shops, side work, the helicopter, pickups, combat, the law —
-// come first, ahead of the plumbing.
+// crew, standing, races, charms, stunts, career, the pause menu, garage,
+// shops, side work, the helicopter, pickups, combat, the law — come first,
+// ahead of the plumbing.
 import { CAMERA, DAY_MINUTES_START, DAY_MINUTES_PER_SECOND, MISSIONS, PLACES, WANTED } from './config.js';
 import { mulberry32, queryParam, clamp, dist2D, angleDiff, moneyString } from './utils.js';
 import { createMissions } from './missions.js';
 import { createWeapons } from './weapons.js';
 import { createRespect } from './respect.js';
+import { createCrew } from './crew.js';
+import { createStanding } from './standing.js';
+import { createRaces } from './races.js';
+import { createCollectibles } from './collectibles.js';
+import { createStunts } from './stunts.js';
+import { createCareer } from './career.js';
+import { createPauseMenu } from './pause.js';
 import { createGarage } from './garage.js';
 import { createShops } from './shops.js';
 import { createActivities } from './activities.js';
@@ -36,9 +49,9 @@ import { createPedestrians } from './pedestrians.js';
 import { createInput } from './input.js';
 import { buildCity } from './city.js';
 import { createEffects } from './effects.js';
-import { setMuted, isMuted, updateEngine, nextStation, sfx } from './audio.js';
+import { setMuted, isMuted, updateEngine, nextStation, currentTrack, sfx } from './audio.js';
 import { createHUD } from './hud.js';
-import { loadSave, writeSave, clearSave, applySave } from './save.js';
+import { loadSlot, writeSlot, writeSave, clearSlot, applySave } from './save.js';
 import { stageShot } from './shots.js';
 
 const STEP = 1 / 60;
@@ -88,6 +101,8 @@ const world = {
   titleRadius: 150,
   titleHeight: 60,
   autoDrive: false, // staged screenshots drive the chase car themselves
+  activeSlot: 1, // the save slot autosave writes to (1-3)
+  waypoint: null, // { x, z } set by clicking the pause map, or null
   scene, // exposed for debugging via window.__solmaris
   camera,
 };
@@ -108,6 +123,12 @@ world.pickups = createPickups(scene, world.effects);
 world.activities = createActivities(scene, world.effects, rng);
 world.weapons = createWeapons();
 world.respect = createRespect();
+world.crew = createCrew();
+world.standing = createStanding();
+world.races = createRaces(scene, world.effects);
+world.collectibles = createCollectibles(scene, world.effects);
+world.stunts = createStunts(scene, world.effects);
+world.career = createCareer();
 world.garage = createGarage(scene, world.effects, rng);
 world.shops = createShops(scene, world.effects);
 world.save = () => writeSave(world);
@@ -129,7 +150,9 @@ function handleWasted() {
   statusTimer = 3;
   const lost = Math.floor(world.money * 0.1);
   world.money -= lost;
+  if (world.missions.state.active) world.missions.state.deathsThisAttempt += 1;
   world.missions.failMission(world, 'You got wasted.');
+  world.races.abort();
   world.hud.showBanner('WASTED', lost > 0 ? `Hospital bill: -$${lost.toLocaleString('en-US')}` : 'You wake up at the hospital.', 3);
   sfx.missionFail();
   document.getElementById('fade').classList.add('show');
@@ -142,6 +165,7 @@ function handleBusted() {
   const lost = Math.floor(world.money * 0.15);
   world.money -= lost;
   world.missions.failMission(world, 'The cops got you.');
+  world.races.abort();
   world.hud.showBanner('BUSTED', lost > 0 ? `Bail: -$${lost.toLocaleString('en-US')}` : 'The cops let you off with a warning.', 3);
   sfx.busted();
   document.getElementById('fade').classList.add('show');
@@ -186,19 +210,22 @@ world.onCarDestroyed = (car) => {
 };
 world.onPedHit = (ped, car) => {
   // Only the player's own car earns heat; traffic accidents are not your crime.
-  if (car && car.role === 'player') world.police.addWanted(WANTED.hitPed, world);
+  if (car && car.role === 'player') world.police.addWanted(WANTED.hitPed, world, 'ASSAULT');
 };
 world.onEnemyKilled = () => {
   world.missions.onEnemyKilled();
   if (world.respect) world.respect.add(world, 3, 'Vulture down');
+  if (world.career) world.career.state.peopleTakenOut += 1;
 };
 world.onBusted = () => handleBusted();
 // A clean getaway: the heat peaked at 3+ stars and is now gone entirely.
 let peakWanted = 0;
 world.onWantedChange = (level) => {
   if (level > peakWanted) peakWanted = level;
+  if (world.career) world.career.state.highestWanted = Math.max(world.career.state.highestWanted, level);
   if (level === 0) {
     if (peakWanted >= 3 && world.respect) world.respect.add(world, 25, 'clean getaway');
+    if (peakWanted >= 3 && world.career) world.career.state.copsEscaped += 1;
     peakWanted = 0;
   }
 };
@@ -214,16 +241,29 @@ function startPlaying() {
 }
 
 function resetWorld() {
-  clearSave();
+  clearSlot(world.activeSlot || 1);
+  resetWorldState();
+}
+
+/** Fresh state without touching the save — New Game clears the slot first,
+ * loading a slot applies its save right after. */
+function resetWorldState() {
   world.money = 0;
   world.completedMissions = [];
   world.dayMinutes = DAY_MINUTES_START;
+  world.waypoint = null;
   world.missions.reset();
   world.combat.clearEnemies();
   world.police.reset();
   world.heli.reset();
+  world.races.reset();
   world.weapons = createWeapons();
   world.respect = createRespect();
+  world.crew.reset();
+  world.standing.reset();
+  world.collectibles.reset();
+  world.stunts.reset();
+  world.career.reset();
   world.shops.state.storedCar = null;
   world.player.state.jack = null;
   world.player.healFull();
@@ -238,16 +278,21 @@ function resetWorld() {
 }
 
 world.hud = createHUD({
-  onNewGame: () => {
+  onNewGame: (slot) => {
     sfx.click();
+    world.activeSlot = slot || 1;
     resetWorld();
     startPlaying();
     world.hud.flash('Welcome to Solmaris. Find Mara at the marina — follow the green marker.', '');
   },
-  onContinue: () => {
+  onContinue: (slot) => {
     sfx.click();
-    const data = loadSave();
-    if (data) applySave(world, data);
+    world.activeSlot = slot || 1;
+    const data = loadSlot(world.activeSlot);
+    if (data) {
+      resetWorldState();
+      applySave(world, data);
+    }
     startPlaying();
   },
   onResume: () => {
@@ -271,7 +316,7 @@ world.hud = createHUD({
     world.save();
     world.hud.hidePause();
     world.input.exitLock();
-    world.hud.showMenu(loadSave(), world.missions.state.index >= MISSIONS.length);
+    world.hud.showMenu(world, world.missions.state.index >= MISSIONS.length);
   },
   onBriefingClose: () => {
     sfx.click();
@@ -290,6 +335,32 @@ world.hud = createHUD({
     world.hud.flash(msg, 'warning');
   },
 });
+
+// The pause menu owns the #pause overlay; the HUD's showPause/hidePause
+// delegate to it, and the SAVE tab writes and loads the three slots.
+world.pause = createPauseMenu({
+  onSaveSlot: (slot) => {
+    world.activeSlot = slot;
+    writeSlot(world, slot);
+    world.hud.flash(`Saved to slot ${slot}`, '');
+    sfx.click();
+  },
+  onLoadSlot: (slot) => {
+    const data = loadSlot(slot);
+    if (!data) return;
+    sfx.click();
+    world.activeSlot = slot;
+    resetWorldState();
+    applySave(world, data);
+    gameState = 'play';
+    world.playing = true;
+    world.paused = false;
+    world.hud.hidePause();
+    world.input.requestLock();
+    world.hud.flash(`Loaded slot ${slot}`, '');
+  },
+});
+world.hud.setPauseMenu(world.pause);
 
 // ---- shop / garage panels ---------------------------------------------------
 // A panel pauses the action (like a briefing) and frees the mouse for clicks.
@@ -357,6 +428,8 @@ function handleInteraction() {
   world.interactPressed = input.justPressed('KeyE');
   if (!world.interactPressed) return;
   if (world.panelOpen || player.state.jack) return;
+  // A district job's package claims E first — on foot or in the car.
+  if (world.activities.tryJobPickup(world)) return;
   // Shops claim E before the car does.
   if (!player.state.inCar && world.shops.nearGunshop(world)) {
     openPanel('gun');
@@ -371,6 +444,12 @@ function handleInteraction() {
       openPanel('garage');
       return;
     }
+    // A race start claims E before getting out of the car.
+    const race = world.races.nearestStart(world.playerX, world.playerZ);
+    if (race && !world.races.state.active && !world.missions.state.active) {
+      world.races.startRace(race.id, world);
+      return;
+    }
     player.exitCar();
     sfx.click();
     return;
@@ -382,8 +461,9 @@ function handleInteraction() {
       player.startJack(world, car);
     } else {
       if (world.police.nearestDistance(player.state.x, player.state.z) < 40) {
-        world.police.addWanted(WANTED.stealCar, world);
+        world.police.addWanted(WANTED.stealCar, world, 'GRAND THEFT AUTO');
       }
+      if (world.career) world.career.state.carsStolen += 1;
       player.enterCar(car);
       sfx.click();
     }
@@ -397,6 +477,11 @@ function computePrompt() {
     world.prompt = 'Jacking the car… stay close';
     return;
   }
+  const jobPrompt = world.activities.jobPrompt(world);
+  if (jobPrompt) {
+    world.prompt = jobPrompt;
+    return;
+  }
   if (player.state.inCar) {
     if (world.garage.nearGarage(world)) {
       world.prompt = 'E — North Garage (upgrades, respray)';
@@ -404,6 +489,11 @@ function computePrompt() {
     }
     if (world.shops.nearSafehouse(world)) {
       world.prompt = 'E — Safehouse (park this car)';
+      return;
+    }
+    const race = world.races.nearestStart(world.playerX, world.playerZ);
+    if (race && !world.races.state.active && !world.missions.state.active) {
+      world.prompt = `E — Start race: ${race.name} (${race.checkpoints.length} checkpoints, $${race.prize.toLocaleString('en-US')})`;
       return;
     }
     world.prompt = 'E — Get out   ·   Space — Handbrake';
@@ -436,7 +526,7 @@ function computePrompt() {
     world.prompt = car.role === 'traffic' ? 'E — Jack the car' : 'E — Get in the car';
     return;
   }
-  world.prompt = 'WASD — Move   ·   Shift — Run   ·   Click — Shoot   ·   1–5/Q — Weapons   ·   P — Pause';
+  world.prompt = 'WASD — Move   ·   Shift — Run   ·   Click — Shoot   ·   1–6/Q — Weapons   ·   Z/X/C — Crew   ·   P — Pause';
 }
 
 // ---- the update ---------------------------------------------------------------
@@ -500,7 +590,7 @@ function update(dt) {
   world.time += dt;
   world.dayMinutes += dt * DAY_MINUTES_PER_SECOND;
 
-  // Pause, mute, reload, punch.
+  // Pause, map, radio, crew abilities, reload, punch.
   if (input.justPressed('KeyP') || input.justPressed('Escape')) {
     if (world.briefingOpen) {
       world.briefingOpen = false;
@@ -509,22 +599,33 @@ function update(dt) {
       gameState = 'pause';
       world.playing = false;
       world.paused = true;
-      world.hud.showPause();
+      world.hud.showPause(world);
       world.input.exitLock();
       world.save();
       return;
     }
   }
-  if (input.justPressed('KeyM')) {
-    setMuted(!isMuted());
-    world.hud.setMutedLabel(isMuted());
+  if (input.justPressed('KeyM') || input.justPressed('Tab')) {
+    // M / Tab open the pause menu straight on the MAP tab.
+    gameState = 'pause';
+    world.playing = false;
+    world.paused = true;
+    world.hud.showPause(world, 'map');
+    world.input.exitLock();
+    world.save();
+    return;
   }
   if (input.justPressed('KeyN')) {
     const station = nextStation();
-    world.hud.flash(`♪ ${station.name} — ${station.desc}`, '');
+    const track = currentTrack();
+    world.hud.flash(`♪ ${station.name} — ${track.artist} — ${track.title}`, '');
   }
+  // The crew: Z drops a star, X repairs the car, C marks the map.
+  if (input.justPressed('KeyZ')) world.crew.useAbility('nadia', world);
+  if (input.justPressed('KeyX')) world.crew.useAbility('theo', world);
+  if (input.justPressed('KeyC')) world.crew.useAbility('iris', world);
   // The arsenal: number keys swap instantly, Q opens the wheel, R reloads.
-  for (const code of ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5']) {
+  for (const code of ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6']) {
     if (input.justPressed(code)) world.weapons.selectByKey(code, world);
   }
   if (input.justPressed('KeyQ')) {
@@ -550,7 +651,13 @@ function update(dt) {
       axes = autoDriveAxes(world, car);
       handbrake = false;
     }
+    // A race countdown holds the car on the line until GO.
+    if (world.races.countdownActive()) {
+      axes = { x: 0, y: 0 };
+      handbrake = true;
+    }
     world.vehicles.drive(car, axes.y, axes.x, dt, handbrake);
+    if (world.career) world.career.state.distanceDrivenKm += Math.abs(car.speed) * dt / 1000;
     const impact = world.vehicles.collideBuildings(car);
     if (impact > 6) {
       world.effects.sparks(car.x, 1, car.z, 10);
@@ -589,6 +696,12 @@ function update(dt) {
   world.pickups.update(dt, world);
   world.activities.update(dt, world);
   world.weapons.update(dt, world);
+  world.crew.update(dt, world);
+  world.standing.update(dt, world);
+  world.races.update(dt, world);
+  world.collectibles.update(dt, world);
+  world.stunts.update(dt, world);
+  world.career.update(dt, world);
   world.garage.update(dt, world);
   world.shops.update(dt, world);
   world.effects.update(dt, world.time);
@@ -624,12 +737,14 @@ function updateAmbient(dt) {
 let last = performance.now();
 let accumulator = 0;
 let shotReadySent = false;
-let heistBoomDone = false;
 
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
+  // Pause keys only count when the game was already paused as this frame
+  // began — otherwise the P press that pauses would resume at once.
+  const wasPaused = gameState === 'pause';
 
   if (gameState === 'play' && !world.briefingOpen && !world.panelOpen) {
     accumulator += dt;
@@ -664,6 +779,22 @@ function frame(now) {
   // Pause: render the frozen frame as-is.
 
   renderer.render(scene, camera);
+  // The pause menu's keys: P/Esc resumes, Q/E switch tabs, M/Tab jumps to MAP.
+  if (wasPaused) {
+    if (world.input.justPressed('KeyP') || world.input.justPressed('Escape')) {
+      gameState = 'play';
+      world.playing = true;
+      world.paused = false;
+      world.hud.hidePause();
+      world.input.requestLock();
+    } else if (world.input.justPressed('KeyQ')) {
+      world.pause.cycleTab(-1);
+    } else if (world.input.justPressed('KeyE')) {
+      world.pause.cycleTab(1);
+    } else if (world.input.justPressed('KeyM') || world.input.justPressed('Tab')) {
+      world.hud.showPauseTab('map');
+    }
+  }
   // A briefing can also be dismissed from the keyboard.
   if (world.briefingOpen && (world.input.justPressed('KeyP') || world.input.justPressed('Enter') || world.input.justPressed('Escape'))) {
     world.briefingOpen = false;
@@ -678,29 +809,39 @@ function frame(now) {
 
   // Staged screenshots: tell the capture script the scene has settled.
   // Timed on the game clock, not on frames, so the frame is the same on a
-  // fast desktop and on a slow software renderer.
+  // fast desktop and on a slow software renderer. The pause shot never
+  // runs the clock (the game is paused), so it is ready on the first frame.
   if (SHOT_NAME && !shotReadySent) {
-    // The heist frame gets a roadside explosion just before capture, so its
-    // smoke is still in the air (visual only — it damages nothing).
-    if (SHOT_NAME === 'heist' && !heistBoomDone && world.time >= 0.9) {
-      heistBoomDone = true;
-      world.effects.explosion(world.playerX + 12, 1, world.playerZ - 8);
-      world.effects.smoke(world.playerX + 12, 2, world.playerZ - 8, 10, true);
-    }
-    const warmup = SHOT_NAME === 'start' ? 0.75 : 1.2;
-    if (world.time >= warmup) {
+    if (SHOT_NAME === 'pause') {
       shotReadySent = true;
       window.__shotReady = true;
+    } else {
+      const warmup = SHOT_NAME === 'start' ? 0.75 : 1.2;
+      if (world.time >= warmup) {
+        shotReadySent = true;
+        window.__shotReady = true;
+      }
     }
   }
 }
 
 // ---- boot ---------------------------------------------------------------------
-world.hud.showMenu(loadSave(), false);
+world.hud.showMenu(world, false);
 world.hud.setMutedLabel(isMuted());
 if (SHOT_NAME) {
   stageShot(SHOT_NAME, world);
-  if (SHOT_NAME !== 'start') {
+  if (SHOT_NAME === 'pause') {
+    gameState = 'pause';
+    world.playing = false;
+    world.paused = true;
+    world.hud.showPause(world, 'stats');
+    // The sim is frozen while paused, so the per-frame HUD update never
+    // runs for this shot — sync the background HUD once from the staged
+    // state (money, clock, crew, standing) so it matches the menu.
+    world.playing = true;
+    world.hud.update(0, world);
+    world.playing = false;
+  } else if (SHOT_NAME !== 'start') {
     gameState = 'play';
     world.playing = true;
   }

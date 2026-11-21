@@ -436,8 +436,8 @@ export function createVehicles(scene, city, effects, rng) {
         wheel.children[1].rotation.y += spin;
       }
       for (const wheel of car.frontWheels) wheel.rotation.y = car.steerVisual * 0.4;
-      // Sync the mesh.
-      car.mesh.position.set(car.x, 0, car.z);
+      // Sync the mesh (airY lifts a car mid stunt-jump).
+      car.mesh.position.set(car.x, car.airY || 0, car.z);
       car.mesh.rotation.y = car.heading;
     }
     // Car-vs-car bumps (player and police included).
